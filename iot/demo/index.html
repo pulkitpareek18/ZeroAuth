@@ -425,12 +425,21 @@
       }
 
       // ── Stream reader ─────────────────────────────────────────────
+      // Returns the raw response object so the caller can inspect
+      // status / parse a JSON body for the non-streamed (409) path.
       async function streamPost(url, body, onEvent) {
         const r = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
+        const ct = r.headers.get('content-type') || '';
+        // 409 + plain JSON: the bridge decided synchronously (e.g. "already
+        // registered"). No stream to read.
+        if (!ct.includes('ndjson')) {
+          const data = await r.json().catch(() => ({}));
+          return { streamed: false, status: r.status, data };
+        }
         if (!r.body) throw new Error('Streaming response not supported by this browser.');
         const reader = r.body.getReader();
         const decoder = new TextDecoder();
@@ -447,6 +456,7 @@
           }
         }
         if (buf.trim()) onEvent(JSON.parse(buf));
+        return { streamed: true, status: r.status };
       }
 
       // ── Phase → UI mapping ───────────────────────────────────────
@@ -510,14 +520,41 @@
             });
             renderSteps(0, 0);
             return;
+          case 'deriving':
+            renderState('signup', {
+              mood: 'working',
+              icon: 'i-spinner',
+              line: 'Deriving Poseidon commitment',
+              sub: 'patent claim 3',
+              detail: evt.commitmentPreview || '',
+            });
+            return;
+          case 'proving':
+            renderState('signup', {
+              mood: 'working',
+              icon: 'i-spinner',
+              line: 'Generating Groth16 proof',
+              sub: 'bn128 · ~1s',
+              detail: '',
+            });
+            return;
+          case 'verifying':
+            renderState('signup', {
+              mood: 'working',
+              icon: 'i-spinner',
+              line: 'Verifying proof against the commitment',
+              sub: 'server side',
+              detail: '',
+            });
+            return;
           case 'done': {
             const r = evt.result || {};
             renderState('signup', {
               mood: 'success',
               icon: 'i-check',
               line: `Enrolled. You're set.`,
-              sub: `Bound to slot ${r.slot}`,
-              detail: r.email || '',
+              sub: `Slot ${r.slot} · commitment ${r.commitmentPreview || ''}`,
+              detail: r.did || r.email || '',
             });
             renderSteps(0, 2);
             $('login-email').value = r.email || $('login-email').value;
@@ -565,6 +602,33 @@
               detail: '',
             });
             return;
+          case 'deriving':
+            renderState('login', {
+              mood: 'working',
+              icon: 'i-spinner',
+              line: 'Re-deriving commitment from the matched slot',
+              sub: 'patent claim 3',
+              detail: evt.commitmentPreview || '',
+            });
+            return;
+          case 'proving':
+            renderState('login', {
+              mood: 'working',
+              icon: 'i-spinner',
+              line: 'Generating Groth16 proof of knowledge',
+              sub: 'bn128 · ~1s',
+              detail: '',
+            });
+            return;
+          case 'verifying':
+            renderState('login', {
+              mood: 'working',
+              icon: 'i-spinner',
+              line: 'Verifying proof against the stored commitment',
+              sub: 'server side',
+              detail: '',
+            });
+            return;
           case 'done': {
             const r = evt.result || {};
             if (r.matched) {
@@ -572,14 +636,15 @@
                 mood: 'success',
                 icon: 'i-check',
                 line: `Welcome, ${r.email}`,
-                sub: `Match · score ${r.score}`,
-                detail: '',
+                sub: `Proof verified · score ${r.score} · ${r.commitmentPreview || ''}`,
+                detail: r.did || '',
               });
             } else {
               const explain =
                 r.reason === 'no_account'   ? 'No account bound to this email — sign up first.' :
                 r.reason === 'no_match'     ? 'Sensor did not recognise this finger.' :
                 r.reason === 'wrong_finger' ? `Matched a different account's slot${r.score ? ` (score ${r.score})` : ''}.` :
+                r.reason === 'proof_failed' ? 'Groth16 verification failed — refusing to authenticate.' :
                 'Login rejected.';
               renderState('login', {
                 mood: 'error',
@@ -614,7 +679,19 @@
         loginBtn.disabled = true;
         resetIndicator('signup');
         try {
-          await streamPost('/api/demo/signup', { email }, applySignupPhase);
+          const r = await streamPost('/api/demo/signup', { email }, applySignupPhase);
+          if (!r.streamed && r.data?.error === 'already_registered') {
+            renderState('signup', {
+              mood: 'error',
+              icon: 'i-cross',
+              line: 'This email is already signed up',
+              sub: `bound to slot ${r.data.slot}`,
+              detail: 'Use the Log in card to sign in with your fingerprint.',
+            });
+            $('login-email').value = email;
+            $('login-email').focus();
+            return;
+          }
           await refreshAccounts();
         } catch (err) {
           renderState('signup', { mood: 'error', icon: 'i-cross', line: 'Signup failed', sub: '', detail: err.message });

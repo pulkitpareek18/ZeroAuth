@@ -44,6 +44,8 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONF, R307Sensor } from './sensor.js';
+import { deriveSignals, shortHex } from './crypto.js';
+import { generateProof, verifyProof, initProver } from './proof.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -57,9 +59,31 @@ const ACCOUNTS_FILE = path.resolve(__dirname, '..', 'data', 'demo-accounts.json'
 const DEMO_HTML_PATH = path.resolve(__dirname, '..', 'demo', 'index.html');
 const FAVICON_SVG_PATH = path.resolve(__dirname, '..', '..', 'public', 'zeroauth-mark.svg');
 
+// The pepper is a host-side secret that mixes into the synthetic
+// biometric template. Different pepper → different commitments for the
+// same finger, so a stolen accounts.json can't be replayed against a
+// fresh bridge. Demo-grade; production lives in a TEE.
+const PEPPER = process.env.ZA_IOT_PEPPER ?? 'zeroauth-iot-demo-pepper-v1';
+
+/**
+ * What the "server" persists per account. NO secrets — just the
+ * commitment + the public inputs the verifier needs. The bridge can
+ * re-derive the witnessing biometricSecret at login because the slot
+ * is stable across scans of the same finger; the salt is stored so
+ * the recomputation reaches the same commitment.
+ */
 interface Account {
   email: string;
   slot: number;
+  /** decimal string — BN128 scalar */
+  salt: string;
+  /** decimal string — Poseidon(biometricSecret, salt) */
+  commitment: string;
+  /** decimal string — Poseidon(SHA-256(did)_F) */
+  didHash: string;
+  /** decimal string — Poseidon(biometricSecret, didHash) */
+  identityBinding: string;
+  did: string;
   createdAt: string;
 }
 
@@ -81,11 +105,36 @@ function withSensorLock<T>(fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
+function isValidAccount(a: unknown): a is Account {
+  if (!a || typeof a !== 'object') return false;
+  const o = a as Record<string, unknown>;
+  return (
+    typeof o.email === 'string' &&
+    typeof o.slot === 'number' &&
+    typeof o.salt === 'string' &&
+    typeof o.commitment === 'string' &&
+    typeof o.didHash === 'string' &&
+    typeof o.identityBinding === 'string' &&
+    typeof o.did === 'string' &&
+    typeof o.createdAt === 'string'
+  );
+}
+
 async function loadAccounts(): Promise<void> {
   try {
     const raw = await fs.readFile(ACCOUNTS_FILE, 'utf8');
-    const arr = JSON.parse(raw) as Account[];
-    for (const a of arr) accounts.set(a.email.toLowerCase(), a);
+    const arr = JSON.parse(raw) as unknown[];
+    let skipped = 0;
+    for (const candidate of arr) {
+      if (!isValidAccount(candidate)) {
+        skipped += 1;
+        continue;
+      }
+      accounts.set(candidate.email.toLowerCase(), candidate);
+    }
+    if (skipped > 0) {
+      console.warn(`[bridge] skipped ${skipped} legacy account(s) without ZK commitment fields — re-signup to migrate.`);
+    }
     console.log(`[bridge] restored ${accounts.size} account(s) from ${ACCOUNTS_FILE}`);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
@@ -131,6 +180,9 @@ export type Phase =
   | { phase: 'removed'; step: 1 }
   | { phase: 'storing' }
   | { phase: 'searching' }
+  | { phase: 'deriving'; commitmentPreview: string }
+  | { phase: 'proving' }
+  | { phase: 'verifying' }
   /**
    * A capture-or-combine attempt failed for a retryable reason and we're
    * about to start the whole two-capture flow over. The UI should reset
@@ -164,11 +216,23 @@ const MAX_ENROLL_ATTEMPTS = 3;
 
 type ProgressFn = (event: Phase) => void;
 
+export class EmailAlreadyRegisteredError extends Error {
+  constructor(public readonly email: string) {
+    super(`Email already registered: ${email}`);
+    this.name = 'EmailAlreadyRegisteredError';
+  }
+}
+
 async function enroll(email: string, onProgress: ProgressFn): Promise<Account> {
   if (!sensor) throw new Error('Sensor not initialised');
+  // The "is this email taken" check intentionally happens BEFORE we
+  // touch the sensor — no finger should be requested if signup will
+  // be rejected anyway.
+  if (accounts.has(email)) {
+    throw new EmailAlreadyRegisteredError(email);
+  }
   return withSensorLock(async () => {
-    const existing = accounts.get(email);
-    const slot = existing?.slot ?? nextFreeSlot();
+    const slot = nextFreeSlot();
 
     // Whole-flow retry loop. Either of the two captures or the final
     // RegModel can fail with a "try again" code; in all those cases we
@@ -199,14 +263,46 @@ async function enroll(email: string, onProgress: ProgressFn): Promise<Account> {
         await sensor!.combineToTemplate();
         await sensor!.storeTemplate(slot);
 
+        // Patent-Claim-3 derivation. The slot is stable across scans of
+        // the same finger; the salt is fresh per signup. The host
+        // persists ONLY the commitment + public inputs — no secret.
+        const signals = deriveSignals({ slot, email, pepper: PEPPER });
+        onProgress({ phase: 'deriving', commitmentPreview: shortHex(signals.commitment) });
+
+        // Generate + self-verify the Groth16 proof. The bridge is acting
+        // as both prover (device side) and verifier (server side) for
+        // the demo. Failing to verify our own proof is a wiring bug, not
+        // an auth failure — bail with a clear message.
+        console.log('[bridge] signup: generating Groth16 proof…');
+        onProgress({ phase: 'proving' });
+        const { proof, publicSignals } = await generateProof({
+          biometricSecret: signals.biometricSecret,
+          salt: signals.salt,
+          commitment: signals.commitment,
+          didHash: signals.didHash,
+          identityBinding: signals.identityBinding,
+        });
+
+        console.log('[bridge] signup: verifying Groth16 proof…');
+        onProgress({ phase: 'verifying' });
+        const ok = await verifyProof({ proof, publicSignals });
+        if (!ok) {
+          throw new Error('Signup-time proof failed verification — refusing to persist account.');
+        }
+
         const account: Account = {
           email,
           slot,
-          createdAt: existing?.createdAt ?? new Date().toISOString(),
+          salt: signals.salt.toString(),
+          commitment: signals.commitment.toString(),
+          didHash: signals.didHash.toString(),
+          identityBinding: signals.identityBinding.toString(),
+          did: signals.did,
+          createdAt: new Date().toISOString(),
         };
         accounts.set(email, account);
         await saveAccounts();
-        console.log(`[bridge] signup OK for ${email} @ slot ${slot}`);
+        console.log(`[bridge] signup OK for ${email} @ slot ${slot}, commitment ${shortHex(signals.commitment)}`);
         return account;
       } catch (err) {
         const reason = classifyRetryable(err as Error);
@@ -215,13 +311,10 @@ async function enroll(email: string, onProgress: ProgressFn): Promise<Account> {
         }
         lastErr = err as Error;
         console.log(`[bridge] signup attempt ${attempt} failed (${reason}); retrying`);
-        // Make sure the finger is off the sensor before the next attempt.
-        // Any error here is fine — the next waitForFinger restarts the cycle.
         await sensor!.waitForFingerRemoval().catch(() => undefined);
         onProgress({ phase: 'retry', attempt: attempt + 1, reason });
       }
     }
-    // Unreachable — the loop either returns or throws.
     throw lastErr ?? new Error('Enrollment exhausted without resolution');
   });
 }
@@ -230,7 +323,10 @@ interface AuthResult {
   matched: boolean;
   email: string;
   score?: number;
-  reason?: 'no_account' | 'no_match' | 'wrong_finger';
+  reason?: 'no_account' | 'no_match' | 'wrong_finger' | 'proof_failed';
+  /** Set on success. The commitment the bridge stored for this account. */
+  commitmentPreview?: string;
+  did?: string;
 }
 
 async function authenticate(email: string, onProgress: ProgressFn): Promise<AuthResult> {
@@ -258,8 +354,59 @@ async function authenticate(email: string, onProgress: ProgressFn): Promise<Auth
       console.log(`[bridge] login: matched slot ${result.pageId} but ${email} is bound to slot ${account.slot}`);
       return { matched: false, email, reason: 'wrong_finger', score: result.matchScore };
     }
+
+    // Sensor matched the slot the email is bound to. That's a necessary
+    // condition; the Groth16 proof is the sufficient one. Re-derive the
+    // private inputs from (slot, email, stored salt) and prove we still
+    // know them — verification against the stored public commitment is
+    // what actually authenticates.
+    const signals = deriveSignals({
+      slot: result.pageId,
+      email,
+      pepper: PEPPER,
+      salt: BigInt(account.salt),
+    });
+    onProgress({ phase: 'deriving', commitmentPreview: shortHex(signals.commitment) });
+
+    console.log('[bridge] login: generating Groth16 proof…');
+    onProgress({ phase: 'proving' });
+    const { proof, publicSignals } = await generateProof({
+      biometricSecret: signals.biometricSecret,
+      salt: signals.salt,
+      commitment: signals.commitment,
+      didHash: signals.didHash,
+      identityBinding: signals.identityBinding,
+    });
+
+    // Public-signal integrity: snarkjs's publicSignals must equal the
+    // stored values, exactly. If they don't, somebody is replaying with
+    // a mismatched commitment.
+    const [pubCommit, pubDidHash, pubBinding] = publicSignals;
+    if (
+      pubCommit !== account.commitment ||
+      pubDidHash !== account.didHash ||
+      pubBinding !== account.identityBinding
+    ) {
+      console.log('[bridge] login: public signal mismatch (commitment recomputation diverged)');
+      return { matched: false, email, reason: 'proof_failed' };
+    }
+
+    console.log('[bridge] login: verifying Groth16 proof…');
+    onProgress({ phase: 'verifying' });
+    const ok = await verifyProof({ proof, publicSignals });
+    if (!ok) {
+      console.log('[bridge] login: proof failed verification');
+      return { matched: false, email, reason: 'proof_failed' };
+    }
+
     console.log(`[bridge] login OK for ${email} @ slot ${result.pageId} (score ${result.matchScore})`);
-    return { matched: true, email, score: result.matchScore };
+    return {
+      matched: true,
+      email,
+      score: result.matchScore,
+      commitmentPreview: shortHex(signals.commitment),
+      did: account.did,
+    };
   });
 }
 
@@ -353,9 +500,31 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 400, { error: 'invalid_email' });
         return;
       }
+      // Already-registered is decided synchronously, BEFORE we begin the
+      // stream, so the browser can render a clean "log in instead" state
+      // without showing a place-finger prompt that would just bail. The
+      // signup endpoint stays 409-flavoured even though the success path
+      // is a stream — it's the only path that 409s.
+      if (accounts.has(email)) {
+        sendJson(res, 409, {
+          error: 'already_registered',
+          email,
+          slot: accounts.get(email)!.slot,
+        });
+        return;
+      }
       await runStreamed(res, async (write) => {
         const account = await enroll(email, write);
-        write({ phase: 'done', result: { email: account.email, slot: account.slot, createdAt: account.createdAt } });
+        write({
+          phase: 'done',
+          result: {
+            email: account.email,
+            slot: account.slot,
+            createdAt: account.createdAt,
+            commitmentPreview: shortHex(BigInt(account.commitment)),
+            did: account.did,
+          },
+        });
       });
       return;
     }
@@ -397,6 +566,9 @@ const server = http.createServer(async (req, res) => {
 
 async function main(): Promise<void> {
   await loadAccounts();
+
+  console.log('[bridge] preloading Groth16 proving + verification keys…');
+  await initProver();
 
   sensor = new R307Sensor({
     path: SERIAL_PATH,
