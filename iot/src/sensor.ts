@@ -425,6 +425,58 @@ export class R307Sensor {
     return Buffer.concat(chunks);
   }
 
+  /**
+   * Download host-held template bytes into one of the sensor's character
+   * buffers. Used by the Pramaan flow at login: the host loads the
+   * previously-uploaded template into buf2, captures the live finger to
+   * buf1, then calls `match()`. The sensor's flash is never involved.
+   *
+   * Mirror of uploadCharacteristic — same packet sizing rules
+   * (sensor's configured packet size; we chunk to 128 by default which
+   * matches the R307 factory packet-size register at boot).
+   */
+  async downloadCharacteristic(buffer: 1 | 2, data: Buffer, packetSize = 128): Promise<void> {
+    if (data.length === 0) throw new Error('downloadCharacteristic: empty data');
+    if (data.length % packetSize !== 0) {
+      // R307 templates are typically 768 B; 128 * 6. If a future caller
+      // feeds an oddly-sized buffer we'd rather fail loudly than send a
+      // partial last packet.
+      throw new Error(`downloadCharacteristic: data length ${data.length} is not a multiple of packetSize ${packetSize}`);
+    }
+
+    const ack = await this.cmd(CMD.DOWN_CHAR, Buffer.from([buffer]));
+    const conf = ack.readUInt8(0);
+    if (conf !== CONF.OK) {
+      throw new Error(`down_char buffer=${buffer} confirmation=0x${conf.toString(16)}`);
+    }
+
+    const totalChunks = data.length / packetSize;
+    for (let i = 0; i < totalChunks; i++) {
+      const isLast = i === totalChunks - 1;
+      const chunk = data.subarray(i * packetSize, (i + 1) * packetSize);
+      const pid = isLast ? PID.END_DATA : PID.DATA;
+      await this.writeRaw(buildPacket(pid, chunk, this.address));
+    }
+    // R307 does not ACK after the data stream completes. The next
+    // command (e.g. MATCH) will fail loudly if the download was rejected.
+  }
+
+  /**
+   * 1:1 match — compares the characteristic files in buf1 and buf2.
+   * Returns the match score (R307 reports 0-300+ at security level 3;
+   * roughly: >50 = same finger, depending on level). Returns null on
+   * "no match" (CONF.NOT_MATCH).
+   */
+  async match(): Promise<{ score: number } | null> {
+    const ack = await this.cmd(CMD.MATCH);
+    const conf = ack.readUInt8(0);
+    if (conf === CONF.NOT_MATCH) return null;
+    if (conf !== CONF.OK) {
+      throw new Error(`match confirmation=0x${conf.toString(16)}`);
+    }
+    return { score: ack.readUInt16BE(1) };
+  }
+
   /** Delete a single stored template. */
   async deleteTemplate(slot: number): Promise<void> {
     const args = Buffer.alloc(4);

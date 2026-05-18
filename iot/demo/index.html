@@ -280,10 +280,11 @@
     <section class="hero">
       <h2>Email + <em>finger</em>. That's it.</h2>
       <p>
-        Type your email, press a button, then follow the on-screen prompts.
-        The R307 captures the print, the bridge tells you exactly when to
-        place and lift your finger, and your login is bound to the slot
-        the sensor stored your template at.
+        The sensor captures, the host runs everything else. At signup we
+        upload the stable template, derive a Poseidon commitment, and
+        generate a Groth16 proof. At login we download the stored template
+        back into the sensor, ask for a 1:1 match, and re-verify the proof.
+        Capacity is bound by disk, not by the sensor's 1000-slot flash.
       </p>
     </section>
 
@@ -291,7 +292,7 @@
 
       <div class="card">
         <h3>Sign up</h3>
-        <p>Two captures. The bridge will prompt you to place your finger, lift it, then place it again. Both scans are combined into one on-sensor template.</p>
+        <p>Two captures. The bridge combines them into a stable template, uploads it to the host, derives a Poseidon commitment, and generates + verifies a Groth16 proof.</p>
         <div>
           <label for="signup-email">Email</label>
           <input id="signup-email" type="email" placeholder="you@example.com" autocomplete="email" />
@@ -311,7 +312,7 @@
 
       <div class="card">
         <h3>Log in</h3>
-        <p>Single capture. The sensor runs a 1:N match and we accept iff the slot it returns is the one bound to this email.</p>
+        <p>Single capture. The host pushes the stored template back into the sensor and asks for a 1:1 match; on success it re-derives the commitment and verifies the proof.</p>
         <div>
           <label for="login-email">Email</label>
           <input id="login-email" type="email" placeholder="you@example.com" autocomplete="email" />
@@ -328,15 +329,15 @@
     </div>
 
     <div class="accounts">
-      <h4>Bound accounts <span style="color:#8e8e8e">(in-memory + JSON mirror)</span></h4>
+      <h4>Bound accounts <span style="color:#8e8e8e">(host-side; sensor flash unused)</span></h4>
       <table id="accounts-table">
         <thead>
-          <tr><th>Email</th><th>Slot</th><th>Created</th></tr>
+          <tr><th>Email</th><th>DID</th><th>Created</th></tr>
         </thead>
         <tbody><tr><td class="empty" colspan="3">No accounts yet.</td></tr></tbody>
       </table>
       <div class="reset">
-        <button class="ghost" id="reset-btn">Wipe sensor + clear accounts</button>
+        <button class="ghost" id="reset-btn">Clear all accounts</button>
       </div>
     </div>
 
@@ -500,12 +501,12 @@
               detail: '',
             });
             return;
-          case 'storing':
+          case 'uploading_template':
             renderState('signup', {
               mood: 'working',
               icon: 'i-spinner',
-              line: 'Storing template on the sensor',
-              sub: 'Almost there',
+              line: 'Uploading template to host',
+              sub: 'sensor flash untouched',
               detail: '',
             });
             renderSteps(0, 2);
@@ -593,12 +594,21 @@
               detail: '',
             });
             return;
-          case 'searching':
+          case 'loading_template':
             renderState('login', {
               mood: 'working',
               icon: 'i-spinner',
-              line: 'Matching against stored fingerprints',
-              sub: '1:N search',
+              line: 'Pushing stored template into the sensor',
+              sub: 'down_char → buf2',
+              detail: '',
+            });
+            return;
+          case 'matching':
+            renderState('login', {
+              mood: 'working',
+              icon: 'i-spinner',
+              line: '1:1 match — fresh capture vs stored template',
+              sub: evt.score !== undefined ? `score ${evt.score}` : 'sensor side',
               detail: '',
             });
             return;
@@ -643,7 +653,7 @@
               const explain =
                 r.reason === 'no_account'   ? 'No account bound to this email — sign up first.' :
                 r.reason === 'no_match'     ? 'Sensor did not recognise this finger.' :
-                r.reason === 'wrong_finger' ? `Matched a different account's slot${r.score ? ` (score ${r.score})` : ''}.` :
+                r.reason === 'wrong_finger' ? `Sensor refused the 1:1 match against the stored template${r.score !== undefined ? ` (score ${r.score})` : ''}.` :
                 r.reason === 'proof_failed' ? 'Groth16 verification failed — refusing to authenticate.' :
                 'Login rejected.';
               renderState('login', {
@@ -685,7 +695,7 @@
               mood: 'error',
               icon: 'i-cross',
               line: 'This email is already signed up',
-              sub: `bound to slot ${r.data.slot}`,
+              sub: r.data.did ? `did ${r.data.did.slice(-8)}` : '',
               detail: 'Use the Log in card to sign in with your fingerprint.',
             });
             $('login-email').value = email;
@@ -721,7 +731,7 @@
       }
 
       async function handleReset() {
-        if (!confirm('Wipe ALL templates on the sensor and clear the accounts map?')) return;
+        if (!confirm('Clear ALL host-stored accounts? The sensor flash isn\'t touched.')) return;
         signupBtn.disabled = true;
         loginBtn.disabled = true;
         resetBtn.disabled = true;
@@ -730,7 +740,7 @@
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           resetIndicator('signup');
           resetIndicator('login');
-          renderState('signup', { mood: 'success', icon: 'i-check', line: 'Sensor wiped', sub: 'All accounts cleared', detail: '' });
+          renderState('signup', { mood: 'success', icon: 'i-check', line: 'Accounts cleared', sub: '', detail: '' });
           await refreshAccounts();
         } catch (err) {
           renderState('signup', { mood: 'error', icon: 'i-cross', line: 'Reset failed', sub: '', detail: err.message });
@@ -750,11 +760,11 @@
             return;
           }
           tableBody.innerHTML = arr
-            .sort((a, b) => a.slot - b.slot)
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
             .map((a) => `
               <tr>
                 <td>${escapeHtml(a.email)}</td>
-                <td>${a.slot}</td>
+                <td>${escapeHtml((a.did || '').slice(-12))}</td>
                 <td>${new Date(a.createdAt).toLocaleString()}</td>
               </tr>
             `)

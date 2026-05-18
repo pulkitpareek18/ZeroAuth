@@ -32,20 +32,14 @@ import { poseidon1, poseidon2 } from 'poseidon-lite';
 export const BN128_FIELD_MODULUS = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 
 /**
- * The "biometric template" stand-in. The sensor's slot ID is stable
- * across scans of the same finger; we hash a domain-separated label so
- * a malicious operator can't spoof by sending slot=N over the bridge —
- * the bridge knows the pepper, the network doesn't.
+ * Patent step 1: SHA-256 of the biometric template. The template is the
+ * stable 768-byte representation produced by `combineToTemplate()` on
+ * the R307 — same finger → same template (modulo enrollment noise that
+ * gets absorbed by combining two captures). The host treats this hash
+ * as the device-derived biometric identity.
  */
-export function slotSeed(slot: number, pepper: string): Buffer {
-  if (slot < 0 || !Number.isInteger(slot)) throw new Error(`bad slot: ${slot}`);
-  const label = `zeroauth-iot-slot-v1|${slot}|${pepper}`;
-  return Buffer.from(label, 'utf8');
-}
-
-/** Patent step 1: SHA-256 of the (synthetic) biometric template. */
-export function biometricId(seed: Buffer): Buffer {
-  return createHash('sha256').update(seed).digest();
+export function biometricId(templateBytes: Buffer): Buffer {
+  return createHash('sha256').update(templateBytes).digest();
 }
 
 /** Truncate a 32-byte buffer to 31 bytes and read as a big-endian bigint. */
@@ -102,13 +96,11 @@ export interface IdentitySignals {
 }
 
 export function deriveSignals(input: {
-  slot: number;
+  templateBytes: Buffer;
   email: string;
-  pepper: string;
   salt?: bigint;
 }): IdentitySignals {
-  const seed = slotSeed(input.slot, input.pepper);
-  const bid = biometricId(seed);
+  const bid = biometricId(input.templateBytes);
   const salt = input.salt ?? randomSalt();
   const biometricSecret = deriveBiometricSecret(bid, salt);
   const commitment = computeCommitment(biometricSecret, salt);

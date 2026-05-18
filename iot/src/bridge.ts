@@ -59,22 +59,33 @@ const ACCOUNTS_FILE = path.resolve(__dirname, '..', 'data', 'demo-accounts.json'
 const DEMO_HTML_PATH = path.resolve(__dirname, '..', 'demo', 'index.html');
 const FAVICON_SVG_PATH = path.resolve(__dirname, '..', '..', 'public', 'zeroauth-mark.svg');
 
-// The pepper is a host-side secret that mixes into the synthetic
-// biometric template. Different pepper → different commitments for the
-// same finger, so a stolen accounts.json can't be replayed against a
-// fresh bridge. Demo-grade; production lives in a TEE.
-const PEPPER = process.env.ZA_IOT_PEPPER ?? 'zeroauth-iot-demo-pepper-v1';
+/**
+ * Minimum 1:1 match score (R307 reports 0-300+ at security level 3).
+ * Anything below this is treated as "not the right finger." Tunable;
+ * level-3 scoring on this unit hovers in the 80–180 range for the
+ * same finger, single-digit when fingers differ.
+ */
+const MATCH_THRESHOLD = 50;
 
 /**
- * What the "server" persists per account. NO secrets — just the
- * commitment + the public inputs the verifier needs. The bridge can
- * re-derive the witnessing biometricSecret at login because the slot
- * is stable across scans of the same finger; the salt is stored so
- * the recomputation reaches the same commitment.
+ * Per-Pramaan storage: the sensor's flash slots are NOT used at all.
+ * The host owns the template, the commitment, and the proof-side public
+ * signals. Capacity is bound only by disk. The sensor is reduced to two
+ * roles: (1) capture+combine produces the stable template at signup;
+ * (2) 1:1 MATCH at login compares a fresh capture against the host-
+ * supplied template downloaded into buf2.
+ *
+ * Storing the template on the host is the demo's compromise vs. real
+ * Pramaan. The production construction wraps the template in a fuzzy-
+ * extractor helper string that's information-theoretically useless
+ * without a close-enough finger; we approximate that property here by
+ * the fact that the template alone can't authenticate — you also need
+ * a finger the sensor will match against it.
  */
 interface Account {
   email: string;
-  slot: number;
+  /** Base64 of the 768-byte sensor template. Re-downloaded at login. */
+  template: string;
   /** decimal string — BN128 scalar */
   salt: string;
   /** decimal string — Poseidon(biometricSecret, salt) */
@@ -110,7 +121,7 @@ function isValidAccount(a: unknown): a is Account {
   const o = a as Record<string, unknown>;
   return (
     typeof o.email === 'string' &&
-    typeof o.slot === 'number' &&
+    typeof o.template === 'string' &&
     typeof o.salt === 'string' &&
     typeof o.commitment === 'string' &&
     typeof o.didHash === 'string' &&
@@ -149,14 +160,6 @@ async function saveAccounts(): Promise<void> {
   await fs.writeFile(ACCOUNTS_FILE, JSON.stringify(arr, null, 2), 'utf8');
 }
 
-function nextFreeSlot(): number {
-  const used = new Set([...accounts.values()].map((a) => a.slot));
-  for (let i = 0; i < 1000; i++) {
-    if (!used.has(i)) return i;
-  }
-  throw new Error('No free slot left on sensor (capacity is 1000).');
-}
-
 function normalizeEmail(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim().toLowerCase();
@@ -178,8 +181,9 @@ export type Phase =
   | { phase: 'captured'; step: 1 | 2 | 0 }
   | { phase: 'awaiting_removal'; step: 1 }
   | { phase: 'removed'; step: 1 }
-  | { phase: 'storing' }
-  | { phase: 'searching' }
+  | { phase: 'uploading_template' }
+  | { phase: 'loading_template' }
+  | { phase: 'matching'; score?: number }
   | { phase: 'deriving'; commitmentPreview: string }
   | { phase: 'proving' }
   | { phase: 'verifying' }
@@ -225,23 +229,14 @@ export class EmailAlreadyRegisteredError extends Error {
 
 async function enroll(email: string, onProgress: ProgressFn): Promise<Account> {
   if (!sensor) throw new Error('Sensor not initialised');
-  // The "is this email taken" check intentionally happens BEFORE we
-  // touch the sensor — no finger should be requested if signup will
-  // be rejected anyway.
   if (accounts.has(email)) {
     throw new EmailAlreadyRegisteredError(email);
   }
   return withSensorLock(async () => {
-    const slot = nextFreeSlot();
-
-    // Whole-flow retry loop. Either of the two captures or the final
-    // RegModel can fail with a "try again" code; in all those cases we
-    // restart from scratch rather than asking the operator to dismiss
-    // an error and click Sign Up again.
     let lastErr: Error | undefined;
     for (let attempt = 1; attempt <= MAX_ENROLL_ATTEMPTS; attempt++) {
       try {
-        console.log(`[bridge] signup: attempt ${attempt}/${MAX_ENROLL_ATTEMPTS}, capture 1/2 for ${email} @ slot ${slot}`);
+        console.log(`[bridge] signup: attempt ${attempt}/${MAX_ENROLL_ATTEMPTS}, capture 1/2 for ${email}`);
         onProgress({ phase: 'awaiting_finger', step: 1 });
         await sensor!.waitForFinger();
         onProgress({ phase: 'captured', step: 1 });
@@ -258,22 +253,22 @@ async function enroll(email: string, onProgress: ProgressFn): Promise<Account> {
         onProgress({ phase: 'captured', step: 2 });
         await sensor!.imageToCharBuffer(2);
 
-        console.log('[bridge] signup: combining + storing…');
-        onProgress({ phase: 'storing' });
+        console.log('[bridge] signup: combining captures into template');
         await sensor!.combineToTemplate();
-        await sensor!.storeTemplate(slot);
 
-        // Patent-Claim-3 derivation. The slot is stable across scans of
-        // the same finger; the salt is fresh per signup. The host
-        // persists ONLY the commitment + public inputs — no secret.
-        const signals = deriveSignals({ slot, email, pepper: PEPPER });
+        // Pull the stable template off the sensor into host memory.
+        // Sensor's flash slot is never touched — this is the Pramaan
+        // shape: sensor captures, host owns everything else.
+        console.log('[bridge] signup: uploading template to host');
+        onProgress({ phase: 'uploading_template' });
+        const templateBytes = await sensor!.uploadCharacteristic(1);
+
+        // Patent-Claim-3 derivation. biometricID = SHA-256(template);
+        // commitment = Poseidon(Poseidon(bid, salt), salt).
+        const signals = deriveSignals({ templateBytes, email });
         onProgress({ phase: 'deriving', commitmentPreview: shortHex(signals.commitment) });
 
-        // Generate + self-verify the Groth16 proof. The bridge is acting
-        // as both prover (device side) and verifier (server side) for
-        // the demo. Failing to verify our own proof is a wiring bug, not
-        // an auth failure — bail with a clear message.
-        console.log('[bridge] signup: generating Groth16 proof…');
+        console.log('[bridge] signup: generating Groth16 proof');
         onProgress({ phase: 'proving' });
         const { proof, publicSignals } = await generateProof({
           biometricSecret: signals.biometricSecret,
@@ -283,7 +278,7 @@ async function enroll(email: string, onProgress: ProgressFn): Promise<Account> {
           identityBinding: signals.identityBinding,
         });
 
-        console.log('[bridge] signup: verifying Groth16 proof…');
+        console.log('[bridge] signup: verifying Groth16 proof');
         onProgress({ phase: 'verifying' });
         const ok = await verifyProof({ proof, publicSignals });
         if (!ok) {
@@ -292,7 +287,7 @@ async function enroll(email: string, onProgress: ProgressFn): Promise<Account> {
 
         const account: Account = {
           email,
-          slot,
+          template: templateBytes.toString('base64'),
           salt: signals.salt.toString(),
           commitment: signals.commitment.toString(),
           didHash: signals.didHash.toString(),
@@ -302,7 +297,7 @@ async function enroll(email: string, onProgress: ProgressFn): Promise<Account> {
         };
         accounts.set(email, account);
         await saveAccounts();
-        console.log(`[bridge] signup OK for ${email} @ slot ${slot}, commitment ${shortHex(signals.commitment)}`);
+        console.log(`[bridge] signup OK for ${email}, template ${templateBytes.length}B, commitment ${shortHex(signals.commitment)}`);
         return account;
       } catch (err) {
         const reason = classifyRetryable(err as Error);
@@ -339,36 +334,45 @@ async function authenticate(email: string, onProgress: ProgressFn): Promise<Auth
     onProgress({ phase: 'captured', step: 0 });
     await sensor!.imageToCharBuffer(1);
 
-    onProgress({ phase: 'searching' });
-    const result = await sensor!.search();
-
     if (!account) {
       console.log(`[bridge] login: no account for ${email}`);
       return { matched: false, email, reason: 'no_account' };
     }
-    if (!result) {
-      console.log(`[bridge] login: no match found on sensor`);
-      return { matched: false, email, reason: 'no_match' };
+
+    // Per Pramaan: never search the sensor's flash. Push the stored
+    // template into buf2, then ask the sensor to MATCH buf1 (fresh
+    // capture) against buf2 (the host's stored template). Sensor's role
+    // is reduced to capture + 1:1 comparison.
+    console.log('[bridge] login: downloading stored template into sensor buf2');
+    onProgress({ phase: 'loading_template' });
+    const templateBytes = Buffer.from(account.template, 'base64');
+    await sensor!.downloadCharacteristic(2, templateBytes);
+
+    console.log('[bridge] login: 1:1 match');
+    onProgress({ phase: 'matching' });
+    const match = await sensor!.match();
+    if (!match) {
+      console.log('[bridge] login: sensor reported NO_MATCH');
+      return { matched: false, email, reason: 'wrong_finger' };
     }
-    if (result.pageId !== account.slot) {
-      console.log(`[bridge] login: matched slot ${result.pageId} but ${email} is bound to slot ${account.slot}`);
-      return { matched: false, email, reason: 'wrong_finger', score: result.matchScore };
+    onProgress({ phase: 'matching', score: match.score });
+    if (match.score < MATCH_THRESHOLD) {
+      console.log(`[bridge] login: score ${match.score} below threshold ${MATCH_THRESHOLD}`);
+      return { matched: false, email, reason: 'wrong_finger', score: match.score };
     }
 
-    // Sensor matched the slot the email is bound to. That's a necessary
-    // condition; the Groth16 proof is the sufficient one. Re-derive the
-    // private inputs from (slot, email, stored salt) and prove we still
-    // know them — verification against the stored public commitment is
-    // what actually authenticates.
+    // Match succeeded. Re-derive the ZK signals using the stored template
+    // + stored salt — both deterministic, so the commitment + public
+    // signals MUST equal the ones we persisted at signup. If they don't,
+    // the on-disk account file was tampered with and we refuse to auth.
     const signals = deriveSignals({
-      slot: result.pageId,
+      templateBytes,
       email,
-      pepper: PEPPER,
       salt: BigInt(account.salt),
     });
     onProgress({ phase: 'deriving', commitmentPreview: shortHex(signals.commitment) });
 
-    console.log('[bridge] login: generating Groth16 proof…');
+    console.log('[bridge] login: generating Groth16 proof');
     onProgress({ phase: 'proving' });
     const { proof, publicSignals } = await generateProof({
       biometricSecret: signals.biometricSecret,
@@ -378,20 +382,17 @@ async function authenticate(email: string, onProgress: ProgressFn): Promise<Auth
       identityBinding: signals.identityBinding,
     });
 
-    // Public-signal integrity: snarkjs's publicSignals must equal the
-    // stored values, exactly. If they don't, somebody is replaying with
-    // a mismatched commitment.
     const [pubCommit, pubDidHash, pubBinding] = publicSignals;
     if (
       pubCommit !== account.commitment ||
       pubDidHash !== account.didHash ||
       pubBinding !== account.identityBinding
     ) {
-      console.log('[bridge] login: public signal mismatch (commitment recomputation diverged)');
+      console.log('[bridge] login: public signal mismatch (stored account corrupted)');
       return { matched: false, email, reason: 'proof_failed' };
     }
 
-    console.log('[bridge] login: verifying Groth16 proof…');
+    console.log('[bridge] login: verifying Groth16 proof');
     onProgress({ phase: 'verifying' });
     const ok = await verifyProof({ proof, publicSignals });
     if (!ok) {
@@ -399,11 +400,11 @@ async function authenticate(email: string, onProgress: ProgressFn): Promise<Auth
       return { matched: false, email, reason: 'proof_failed' };
     }
 
-    console.log(`[bridge] login OK for ${email} @ slot ${result.pageId} (score ${result.matchScore})`);
+    console.log(`[bridge] login OK for ${email} (match score ${match.score}, commitment ${shortHex(signals.commitment)})`);
     return {
       matched: true,
       email,
-      score: result.matchScore,
+      score: match.score,
       commitmentPreview: shortHex(signals.commitment),
       did: account.did,
     };
@@ -411,13 +412,13 @@ async function authenticate(email: string, onProgress: ProgressFn): Promise<Auth
 }
 
 async function reset(): Promise<void> {
-  if (!sensor) throw new Error('Sensor not initialised');
-  await withSensorLock(async () => {
-    await sensor!.emptyDatabase();
-  });
+  // Per Pramaan we no longer use the sensor's flash, so the reset is
+  // purely host-side. The sensor only holds transient buffers (cleared
+  // implicitly between commands) and any QC templates from the factory
+  // that we never used.
   accounts.clear();
   await saveAccounts();
-  console.log('[bridge] reset: wiped sensor library + accounts map');
+  console.log('[bridge] reset: host accounts cleared (sensor flash untouched)');
 }
 
 // ─── HTTP ─────────────────────────────────────────────────────────────────
@@ -509,7 +510,7 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 409, {
           error: 'already_registered',
           email,
-          slot: accounts.get(email)!.slot,
+          did: accounts.get(email)!.did,
         });
         return;
       }
@@ -519,7 +520,6 @@ const server = http.createServer(async (req, res) => {
           phase: 'done',
           result: {
             email: account.email,
-            slot: account.slot,
             createdAt: account.createdAt,
             commitmentPreview: shortHex(BigInt(account.commitment)),
             did: account.did,
