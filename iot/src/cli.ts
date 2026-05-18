@@ -27,7 +27,35 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
-import { R307Sensor } from './sensor.js';
+import { CONF, R307Sensor } from './sensor.js';
+
+/**
+ * Some confirmation codes from the sensor are "operator should try again,"
+ * not "the protocol is broken." Pull out a small retry helper so the search
+ * and capture flows don't bail on the first bad-image scan. CONF.TOO_FUZZY
+ * (0x06) and CONF.TOO_FEW_FEATURE (0x07) are the two we see in practice on
+ * the R307 when the finger is partial, dry, or off-centre.
+ */
+async function withRetry<T>(label: string, attempts: number, run: () => Promise<T>): Promise<T> {
+  let lastErr: Error | undefined;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await run();
+    } catch (err) {
+      const msg = (err as Error).message;
+      const isRetryable =
+        msg.includes(`0x${CONF.TOO_FUZZY.toString(16)}`) ||
+        msg.includes(`0x${CONF.TOO_FEW_FEATURE.toString(16)}`);
+      if (!isRetryable || i === attempts) {
+        throw err;
+      }
+      lastErr = err as Error;
+      console.log(yellow(`  retry ${i}/${attempts - 1} — ${label}: image was unreadable. Try a different placement.`));
+    }
+  }
+  // Unreachable, but keep TS happy.
+  throw lastErr ?? new Error(`withRetry: ${label} exhausted without resolution`);
+}
 
 const PORT = process.env.ZA_IOT_PORT ?? '/dev/cu.usbserial-0001';
 const BAUD = Number.parseInt(process.env.ZA_IOT_BAUD ?? '57600', 10);
@@ -142,10 +170,13 @@ async function cmdEnroll(slotArg?: string): Promise<void> {
 async function cmdSearch(): Promise<void> {
   await withSensor(async (sensor) => {
     console.log(bold('Matching against on-sensor templates.'));
-    console.log(dim('Place finger on sensor…'));
-    await sensor.waitForFinger();
-    await sensor.imageToCharBuffer(1);
-    console.log(green('  ✓ captured'));
+    await withRetry('search capture', 3, async () => {
+      console.log(dim('Place finger on sensor…'));
+      await sensor.waitForFinger();
+      await sensor.imageToCharBuffer(1);
+      console.log(green('  ✓ captured'));
+      await sensor.waitForFingerRemoval();
+    });
 
     const result = await sensor.search();
     if (!result) {
@@ -161,9 +192,11 @@ async function cmdCapture(): Promise<void> {
     const eventId = randomUUID();
     console.log(bold('Single-capture + characteristic upload.'));
     console.log(`  ${dim('event id        ')} ${eventId}`);
-    console.log(dim('Place finger on sensor…'));
-    await sensor.waitForFinger();
-    await sensor.imageToCharBuffer(1);
+    await withRetry('capture', 3, async () => {
+      console.log(dim('Place finger on sensor…'));
+      await sensor.waitForFinger();
+      await sensor.imageToCharBuffer(1);
+    });
     const characteristic = await sensor.uploadCharacteristic(1);
     const commitment = createHash('sha256').update(characteristic).digest('hex');
     console.log(green('  ✓ captured + uploaded'));
