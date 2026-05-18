@@ -36,6 +36,35 @@ On macOS the adapter shows up as `/dev/cu.usbserial-XXXX`. On Linux it's
 `/dev/ttyUSB0` (CH340) or `/dev/ttyUSB1` (FT232 / CP2102). Set `ZA_IOT_PORT`
 if yours isn't `/dev/cu.usbserial-0001`.
 
+## Fingerprint demo web app
+
+A minimal HTML+TS demo that uses the sensor as the login password.
+
+```bash
+npm --prefix iot run demo
+# → http://localhost:3100
+```
+
+The bridge serves a static page (`iot/demo/index.html`) and exposes:
+
+| Method | Path | Body | Behaviour |
+|---|---|---|---|
+| POST | `/api/demo/signup` | `{ email }` | Two-capture enrollment, binds the email to the chosen slot |
+| POST | `/api/demo/login` | `{ email }` | Single scan, 1:N match, checks the matched slot is the one bound to that email |
+| GET | `/api/demo/accounts` | — | Lists all in-memory bindings |
+| POST | `/api/demo/reset` | — | Wipes the sensor library + clears the binding map |
+
+Bindings are mirrored to `iot/data/demo-accounts.json` so the demo survives
+restarts. The R307's own template store is already persistent.
+
+**Demo guard rails (not production code):**
+
+- Bridge binds 127.0.0.1 only.
+- No auth on the endpoints — any local process can list accounts or reset.
+- Matching uses the sensor's internal algorithm (slot-index lookup), NOT
+  the Pramaan fuzzy extractor + Groth16 pipeline. The slot index leaves
+  the sensor in cleartext.
+
 ## Install + run
 
 ```bash

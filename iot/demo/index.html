@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ZeroAuth — Fingerprint demo</title>
+  <link rel="icon" type="image/svg+xml" href="/zeroauth-mark.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <style>
+    *,*::before,*::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: #fafafa;
+      color: #0a0a0a;
+      font-family: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 15px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      padding: clamp(24px, 5vw, 56px);
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; }
+    header {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: clamp(40px, 6vw, 64px);
+    }
+    header img { width: 36px; height: 36px; }
+    header h1 {
+      margin: 0;
+      font-family: 'Fraunces', serif;
+      font-weight: 400;
+      font-variation-settings: 'opsz' 60;
+      font-size: 22px;
+      letter-spacing: -0.01em;
+    }
+    header .badge {
+      margin-left: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6e6e6e;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    header .badge .dot {
+      width: 6px; height: 6px; border-radius: 999px; background: #1a7a4a;
+    }
+    .hero {
+      margin-bottom: clamp(36px, 5vw, 56px);
+      max-width: 64ch;
+    }
+    .hero h2 {
+      margin: 0 0 12px;
+      font-family: 'Fraunces', serif;
+      font-weight: 300;
+      font-variation-settings: 'opsz' 144;
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+    .hero h2 em { font-style: italic; font-weight: 400; }
+    .hero p { color: #525252; max-width: 56ch; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      border: 1px solid #e5e5e5;
+      background: #fff;
+    }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      padding: clamp(24px, 3vw, 40px);
+      display: flex; flex-direction: column; gap: 18px;
+      border-right: 1px solid #e5e5e5;
+    }
+    .card:last-child { border-right: 0; }
+    @media (max-width: 720px) {
+      .card { border-right: 0; border-bottom: 1px solid #e5e5e5; }
+      .card:last-child { border-bottom: 0; }
+    }
+    .card h3 {
+      margin: 0;
+      font-family: 'Fraunces', serif;
+      font-weight: 400;
+      font-variation-settings: 'opsz' 60;
+      font-size: 1.5rem;
+      letter-spacing: -0.02em;
+    }
+    .card p { margin: 0; color: #525252; font-size: 14px; }
+    label {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-weight: 500;
+      color: #6e6e6e;
+      margin-bottom: 6px;
+    }
+    input[type="email"] {
+      width: 100%;
+      height: 44px;
+      padding: 0 12px;
+      font: inherit;
+      color: #0a0a0a;
+      background: #fff;
+      border: 1px solid #d4d4d4;
+      border-radius: 0;
+      outline: none;
+      transition: border-color 180ms ease;
+    }
+    input[type="email"]:focus { border-color: #0a0a0a; }
+    button {
+      height: 48px;
+      padding-inline: 24px;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #fff;
+      background: #0a0a0a;
+      border: 1px solid #0a0a0a;
+      cursor: pointer;
+      transition: background 180ms ease, color 180ms ease, opacity 180ms ease;
+    }
+    button:hover:not(:disabled) { background: transparent; color: #0a0a0a; }
+    button:disabled { opacity: 0.55; cursor: progress; }
+    button.ghost {
+      background: transparent; color: #525252; border-color: #d4d4d4;
+    }
+    button.ghost:hover:not(:disabled) {
+      background: #0a0a0a; color: #fff; border-color: #0a0a0a;
+    }
+    .status {
+      min-height: 64px;
+      padding: 12px 14px;
+      border: 1px solid #e5e5e5;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #525252;
+      background: #fafafa;
+      white-space: pre-wrap;
+    }
+    .status.ok { color: #0a0a0a; background: #f0f8f2; border-color: #cfe7d6; }
+    .status.err { color: #7f1d1d; background: #fef2f2; border-color: #fecaca; }
+    .accounts {
+      margin-top: clamp(40px, 5vw, 56px);
+      padding: clamp(20px, 3vw, 28px);
+      background: #fff;
+      border: 1px solid #e5e5e5;
+    }
+    .accounts h4 {
+      margin: 0 0 16px;
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #6e6e6e;
+      font-weight: 500;
+    }
+    .accounts table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+    .accounts th, .accounts td {
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+      text-align: left;
+      color: #525252;
+    }
+    .accounts th {
+      font-family: 'Inter Tight', sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #8e8e8e;
+      font-weight: 500;
+    }
+    .accounts td:first-child { color: #0a0a0a; }
+    .accounts .empty { color: #8e8e8e; font-family: 'Inter Tight', sans-serif; font-size: 13px; }
+    .reset {
+      margin-top: 16px;
+      display: flex; justify-content: flex-end;
+    }
+    .reset button {
+      height: 36px;
+      padding-inline: 16px;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+    }
+    footer {
+      margin-top: clamp(40px, 5vw, 64px);
+      color: #8e8e8e;
+      font-size: 12px;
+    }
+    footer code { background: #f0f0f0; padding: 1px 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <header>
+      <img src="/zeroauth-mark.svg" alt="" aria-hidden="true" />
+      <h1>ZeroAuth — Fingerprint demo</h1>
+      <span class="badge"><span class="dot"></span>Local bridge</span>
+    </header>
+
+    <section class="hero">
+      <h2>Email + <em>finger</em>. That's it.</h2>
+      <p>
+        Type your email, press a button, place your finger on the R307. On
+        signup we enroll the template at a free slot and bind it to your
+        email. On login we ask the sensor which slot the live scan matches;
+        if it's the one bound to this email, you're in.
+      </p>
+    </section>
+
+    <div class="grid">
+
+      <div class="card">
+        <h3>Sign up</h3>
+        <p>You'll be asked to place the same finger twice (lift between scans). The two captures are combined into one template stored on the sensor.</p>
+        <div>
+          <label for="signup-email">Email</label>
+          <input id="signup-email" type="email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <button id="signup-btn">Sign up with fingerprint</button>
+        <div class="status" id="signup-status">Idle.</div>
+      </div>
+
+      <div class="card">
+        <h3>Log in</h3>
+        <p>Single capture. The sensor runs a 1:N match and we check the slot it returns matches the one we bound to this email at signup.</p>
+        <div>
+          <label for="login-email">Email</label>
+          <input id="login-email" type="email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+        <button id="login-btn">Log in with fingerprint</button>
+        <div class="status" id="login-status">Idle.</div>
+      </div>
+
+    </div>
+
+    <div class="accounts">
+      <h4>Bound accounts <span style="color:#8e8e8e">(in-memory + JSON mirror)</span></h4>
+      <table id="accounts-table">
+        <thead>
+          <tr><th>Email</th><th>Slot</th><th>Created</th></tr>
+        </thead>
+        <tbody><tr><td class="empty" colspan="3">No accounts yet.</td></tr></tbody>
+      </table>
+      <div class="reset">
+        <button class="ghost" id="reset-btn">Wipe sensor + clear accounts</button>
+      </div>
+    </div>
+
+    <footer>
+      Bridge: <code>iot/src/bridge.ts</code> on <code id="origin">http://localhost:3100</code> · Sensor: R307 @ <code>/dev/cu.usbserial-0001</code>
+    </footer>
+
+  </div>
+
+  <script>
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const originLabel = $('origin');
+      originLabel.textContent = location.origin;
+
+      const signupBtn = $('signup-btn');
+      const loginBtn = $('login-btn');
+      const resetBtn = $('reset-btn');
+      const signupStatus = $('signup-status');
+      const loginStatus = $('login-status');
+      const tableBody = $('accounts-table').querySelector('tbody');
+
+      function setStatus(el, message, level) {
+        el.textContent = message;
+        el.classList.remove('ok', 'err');
+        if (level === 'ok') el.classList.add('ok');
+        if (level === 'err') el.classList.add('err');
+      }
+
+      async function refreshAccounts() {
+        try {
+          const r = await fetch('/api/demo/accounts', { cache: 'no-store' });
+          const arr = await r.json();
+          if (!Array.isArray(arr) || arr.length === 0) {
+            tableBody.innerHTML = '<tr><td class="empty" colspan="3">No accounts yet.</td></tr>';
+            return;
+          }
+          tableBody.innerHTML = arr
+            .sort((a, b) => a.slot - b.slot)
+            .map((a) => `
+              <tr>
+                <td>${escapeHtml(a.email)}</td>
+                <td>${a.slot}</td>
+                <td>${new Date(a.createdAt).toLocaleString()}</td>
+              </tr>
+            `)
+            .join('');
+        } catch (err) {
+          tableBody.innerHTML = `<tr><td class="empty" colspan="3">Could not load accounts: ${escapeHtml(err.message)}</td></tr>`;
+        }
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      async function handleSignup() {
+        const email = $('signup-email').value.trim();
+        if (!email) { setStatus(signupStatus, 'Enter an email first.', 'err'); return; }
+        signupBtn.disabled = true;
+        loginBtn.disabled = true;
+        setStatus(signupStatus, 'Place finger on the sensor.\nYou\'ll be asked to lift and place again.', null);
+        try {
+          const r = await fetch('/api/demo/signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          });
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.message || data.error || `HTTP ${r.status}`);
+          setStatus(signupStatus, `Enrolled "${data.email}" at slot ${data.slot}.\nYour fingerprint is now your password.`, 'ok');
+          $('login-email').value = email;
+          await refreshAccounts();
+        } catch (err) {
+          setStatus(signupStatus, `Sign-up failed: ${err.message}`, 'err');
+        } finally {
+          signupBtn.disabled = false;
+          loginBtn.disabled = false;
+        }
+      }
+
+      async function handleLogin() {
+        const email = $('login-email').value.trim();
+        if (!email) { setStatus(loginStatus, 'Enter an email first.', 'err'); return; }
+        signupBtn.disabled = true;
+        loginBtn.disabled = true;
+        setStatus(loginStatus, 'Place finger on the sensor.', null);
+        try {
+          const r = await fetch('/api/demo/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          });
+          const data = await r.json();
+          if (r.ok && data.matched) {
+            setStatus(loginStatus, `Welcome, ${data.email}.\nMatched slot, score ${data.score}.`, 'ok');
+          } else {
+            const reason = data.reason === 'no_account'
+              ? 'No account bound to this email yet — sign up first.'
+              : data.reason === 'no_match'
+                ? 'Sensor did not recognise this finger.'
+                : data.reason === 'wrong_finger'
+                  ? `Sensor matched slot ${data.score ? '(score ' + data.score + ')' : ''}, but that slot belongs to a different account.`
+                  : (data.message || data.error || 'Login failed.');
+            setStatus(loginStatus, `Rejected: ${reason}`, 'err');
+          }
+        } catch (err) {
+          setStatus(loginStatus, `Login failed: ${err.message}`, 'err');
+        } finally {
+          signupBtn.disabled = false;
+          loginBtn.disabled = false;
+        }
+      }
+
+      async function handleReset() {
+        if (!confirm('Wipe ALL templates on the sensor and clear the accounts map? This cannot be undone.')) return;
+        signupBtn.disabled = true;
+        loginBtn.disabled = true;
+        resetBtn.disabled = true;
+        try {
+          const r = await fetch('/api/demo/reset', { method: 'POST' });
+          if (!r.ok) throw new Error('Reset failed');
+          setStatus(signupStatus, 'Sensor wiped + accounts cleared.', 'ok');
+          setStatus(loginStatus, 'Idle.', null);
+          await refreshAccounts();
+        } catch (err) {
+          setStatus(signupStatus, `Reset failed: ${err.message}`, 'err');
+        } finally {
+          signupBtn.disabled = false;
+          loginBtn.disabled = false;
+          resetBtn.disabled = false;
+        }
+      }
+
+      signupBtn.addEventListener('click', handleSignup);
+      loginBtn.addEventListener('click', handleLogin);
+      resetBtn.addEventListener('click', handleReset);
+
+      refreshAccounts();
+    })();
+  </script>
+</body>
+</html>
