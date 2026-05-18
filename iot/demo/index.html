@@ -133,19 +133,87 @@
     button.ghost:hover:not(:disabled) {
       background: #0a0a0a; color: #fff; border-color: #0a0a0a;
     }
-    .status {
-      min-height: 64px;
-      padding: 12px 14px;
+
+    /* ─── Step indicator ─── */
+    .indicator {
       border: 1px solid #e5e5e5;
+      background: #fafafa;
+      padding: 24px 20px;
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
+      min-height: 220px;
+      transition: background 240ms ease, border-color 240ms ease;
+    }
+    .indicator.placing { background: #f0f7ff; border-color: #c5dbf2; }
+    .indicator.captured { background: #f0f8f2; border-color: #cfe7d6; }
+    .indicator.lifting { background: #fffaf0; border-color: #f3dfb8; }
+    .indicator.working { background: #f4f4f4; border-color: #d4d4d4; }
+    .indicator.success { background: #f0f8f2; border-color: #cfe7d6; }
+    .indicator.error { background: #fef2f2; border-color: #fecaca; }
+
+    .ind-icon {
+      width: 72px; height: 72px;
+      display: flex; align-items: center; justify-content: center;
+      color: #0a0a0a;
+      transition: color 240ms ease, transform 240ms ease;
+    }
+    .indicator.placing .ind-icon { color: #1e5fa8; animation: pulse 1.2s ease-in-out infinite; }
+    .indicator.captured .ind-icon { color: #1a7a4a; transform: scale(1.08); }
+    .indicator.lifting .ind-icon { color: #b97f0d; animation: lift 0.9s ease-in-out infinite; }
+    .indicator.working .ind-icon { color: #525252; animation: spin 1.6s linear infinite; }
+    .indicator.success .ind-icon { color: #1a7a4a; }
+    .indicator.error .ind-icon { color: #b91c1c; }
+
+    .ind-icon svg { width: 100%; height: 100%; }
+
+    .ind-line {
+      font-family: 'Fraunces', serif;
+      font-weight: 400;
+      font-variation-settings: 'opsz' 60;
+      font-size: 20px;
+      letter-spacing: -0.01em;
+      text-align: center;
+      color: #0a0a0a;
+      min-height: 28px;
+    }
+    .ind-sub {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: #6e6e6e;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    .ind-detail {
       font-family: 'JetBrains Mono', monospace;
       font-size: 12px;
-      line-height: 1.55;
       color: #525252;
-      background: #fafafa;
-      white-space: pre-wrap;
+      text-align: center;
+      min-height: 18px;
     }
-    .status.ok { color: #0a0a0a; background: #f0f8f2; border-color: #cfe7d6; }
-    .status.err { color: #7f1d1d; background: #fef2f2; border-color: #fecaca; }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50%      { transform: scale(1.12); opacity: 0.75; }
+    }
+    @keyframes lift {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-8px); }
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* ─── Stepper ─── */
+    .stepper { display: flex; gap: 8px; justify-content: center; margin-top: 4px; }
+    .stepper .dot {
+      width: 8px; height: 8px; border-radius: 999px; background: #d4d4d4;
+      transition: background 200ms ease, transform 200ms ease;
+    }
+    .stepper .dot.active { background: #0a0a0a; transform: scale(1.25); }
+    .stepper .dot.done   { background: #1a7a4a; }
+
+    /* ─── Accounts table ─── */
     .accounts {
       margin-top: clamp(40px, 5vw, 56px);
       padding: clamp(20px, 3vw, 28px);
@@ -212,10 +280,10 @@
     <section class="hero">
       <h2>Email + <em>finger</em>. That's it.</h2>
       <p>
-        Type your email, press a button, place your finger on the R307. On
-        signup we enroll the template at a free slot and bind it to your
-        email. On login we ask the sensor which slot the live scan matches;
-        if it's the one bound to this email, you're in.
+        Type your email, press a button, then follow the on-screen prompts.
+        The R307 captures the print, the bridge tells you exactly when to
+        place and lift your finger, and your login is bound to the slot
+        the sensor stored your template at.
       </p>
     </section>
 
@@ -223,24 +291,38 @@
 
       <div class="card">
         <h3>Sign up</h3>
-        <p>You'll be asked to place the same finger twice (lift between scans). The two captures are combined into one template stored on the sensor.</p>
+        <p>Two captures. The bridge will prompt you to place your finger, lift it, then place it again. Both scans are combined into one on-sensor template.</p>
         <div>
           <label for="signup-email">Email</label>
           <input id="signup-email" type="email" placeholder="you@example.com" autocomplete="email" />
         </div>
         <button id="signup-btn">Sign up with fingerprint</button>
-        <div class="status" id="signup-status">Idle.</div>
+        <div class="indicator" id="signup-ind">
+          <div class="ind-icon" id="signup-icon"></div>
+          <div class="ind-line" id="signup-line">Ready</div>
+          <div class="ind-sub" id="signup-sub">Press the button above</div>
+          <div class="stepper" id="signup-steps">
+            <span class="dot" data-step="1"></span>
+            <span class="dot" data-step="2"></span>
+          </div>
+          <div class="ind-detail" id="signup-detail"></div>
+        </div>
       </div>
 
       <div class="card">
         <h3>Log in</h3>
-        <p>Single capture. The sensor runs a 1:N match and we check the slot it returns matches the one we bound to this email at signup.</p>
+        <p>Single capture. The sensor runs a 1:N match and we accept iff the slot it returns is the one bound to this email.</p>
         <div>
           <label for="login-email">Email</label>
           <input id="login-email" type="email" placeholder="you@example.com" autocomplete="email" />
         </div>
         <button id="login-btn">Log in with fingerprint</button>
-        <div class="status" id="login-status">Idle.</div>
+        <div class="indicator" id="login-ind">
+          <div class="ind-icon" id="login-icon"></div>
+          <div class="ind-line" id="login-line">Ready</div>
+          <div class="ind-sub" id="login-sub">Press the button above</div>
+          <div class="ind-detail" id="login-detail"></div>
+        </div>
       </div>
 
     </div>
@@ -264,24 +346,312 @@
 
   </div>
 
+  <!-- ── Inline icon SVGs we swap into the indicator ── -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-finger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 9a7 7 0 0 1 14 0v3"/>
+        <path d="M9 9a3 3 0 0 1 6 0v8a2 2 0 0 1-2 2h-2"/>
+        <path d="M5 12v3a5 5 0 0 0 5 5"/>
+      </symbol>
+      <symbol id="i-finger-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 14v6"/>
+        <polyline points="9 17 12 20 15 17"/>
+        <path d="M5 9a7 7 0 0 1 14 0"/>
+        <path d="M9 9a3 3 0 0 1 6 0"/>
+      </symbol>
+      <symbol id="i-finger-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 11V4"/>
+        <polyline points="9 7 12 4 15 7"/>
+        <path d="M5 14a7 7 0 0 0 14 0"/>
+        <path d="M9 14a3 3 0 0 0 6 0"/>
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="8 12 11 15 16 9"/>
+      </symbol>
+      <symbol id="i-cross" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="9" y1="9" x2="15" y2="15"/>
+        <line x1="15" y1="9" x2="9" y2="15"/>
+      </symbol>
+      <symbol id="i-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-6.2-8.55"/>
+      </symbol>
+    </defs>
+  </svg>
+
   <script>
     (function () {
       const $ = (id) => document.getElementById(id);
-      const originLabel = $('origin');
-      originLabel.textContent = location.origin;
+      $('origin').textContent = location.origin;
 
       const signupBtn = $('signup-btn');
       const loginBtn = $('login-btn');
       const resetBtn = $('reset-btn');
-      const signupStatus = $('signup-status');
-      const loginStatus = $('login-status');
       const tableBody = $('accounts-table').querySelector('tbody');
 
-      function setStatus(el, message, level) {
-        el.textContent = message;
-        el.classList.remove('ok', 'err');
-        if (level === 'ok') el.classList.add('ok');
-        if (level === 'err') el.classList.add('err');
+      // Set initial icons.
+      function icon(id, symbol) {
+        $(id).innerHTML = `<svg><use href="#${symbol}"/></svg>`;
+      }
+      icon('signup-icon', 'i-finger');
+      icon('login-icon', 'i-finger');
+
+      // ── Indicator helpers ────────────────────────────────────────
+      function renderState(prefix, opts) {
+        const ind = $(prefix + '-ind');
+        ind.classList.remove('placing', 'lifting', 'captured', 'working', 'success', 'error');
+        if (opts.mood) ind.classList.add(opts.mood);
+        if (opts.icon) icon(prefix + '-icon', opts.icon);
+        if (opts.line !== undefined) $(prefix + '-line').textContent = opts.line;
+        if (opts.sub  !== undefined) $(prefix + '-sub').textContent  = opts.sub;
+        if (opts.detail !== undefined) $(prefix + '-detail').textContent = opts.detail;
+      }
+
+      function renderSteps(active, done) {
+        const dots = $('signup-steps').querySelectorAll('.dot');
+        dots.forEach((dot) => {
+          const step = Number(dot.dataset.step);
+          dot.classList.remove('active', 'done');
+          if (done && step <= done) dot.classList.add('done');
+          else if (active && step === active) dot.classList.add('active');
+        });
+      }
+
+      function resetIndicator(prefix) {
+        renderState(prefix, { mood: null, icon: 'i-finger', line: 'Ready', sub: 'Press the button above', detail: '' });
+        if (prefix === 'signup') renderSteps(0, 0);
+      }
+
+      // ── Stream reader ─────────────────────────────────────────────
+      async function streamPost(url, body, onEvent) {
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!r.body) throw new Error('Streaming response not supported by this browser.');
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (line) onEvent(JSON.parse(line));
+          }
+        }
+        if (buf.trim()) onEvent(JSON.parse(buf));
+      }
+
+      // ── Phase → UI mapping ───────────────────────────────────────
+      function applySignupPhase(evt) {
+        switch (evt.phase) {
+          case 'awaiting_finger':
+            renderState('signup', {
+              mood: 'placing',
+              icon: 'i-finger-down',
+              line: evt.step === 1 ? 'Place your finger on the sensor' : 'Place the SAME finger again',
+              sub: `Capture ${evt.step} of 2`,
+              detail: 'Hold still until the indicator turns green.',
+            });
+            renderSteps(evt.step, evt.step - 1);
+            return;
+          case 'captured':
+            renderState('signup', {
+              mood: 'captured',
+              icon: 'i-check',
+              line: `Captured — scan ${evt.step}/2`,
+              sub: evt.step === 1 ? 'Now lift your finger' : 'Building template…',
+              detail: '',
+            });
+            renderSteps(evt.step, evt.step);
+            return;
+          case 'awaiting_removal':
+            renderState('signup', {
+              mood: 'lifting',
+              icon: 'i-finger-up',
+              line: 'Lift your finger off the sensor',
+              sub: 'Waiting for finger removal…',
+              detail: '',
+            });
+            return;
+          case 'removed':
+            renderState('signup', {
+              mood: 'working',
+              icon: 'i-spinner',
+              line: 'Good. Get ready for the second scan.',
+              sub: 'Resetting between captures',
+              detail: '',
+            });
+            return;
+          case 'storing':
+            renderState('signup', {
+              mood: 'working',
+              icon: 'i-spinner',
+              line: 'Storing template on the sensor',
+              sub: 'Almost there',
+              detail: '',
+            });
+            renderSteps(0, 2);
+            return;
+          case 'done': {
+            const r = evt.result || {};
+            renderState('signup', {
+              mood: 'success',
+              icon: 'i-check',
+              line: `Enrolled. You're set.`,
+              sub: `Bound to slot ${r.slot}`,
+              detail: r.email || '',
+            });
+            renderSteps(0, 2);
+            $('login-email').value = r.email || $('login-email').value;
+            return;
+          }
+          case 'error':
+            renderState('signup', {
+              mood: 'error',
+              icon: 'i-cross',
+              line: 'Signup failed',
+              sub: 'Try again',
+              detail: evt.message || '',
+            });
+            renderSteps(0, 0);
+            return;
+        }
+      }
+
+      function applyLoginPhase(evt) {
+        switch (evt.phase) {
+          case 'awaiting_finger':
+            renderState('login', {
+              mood: 'placing',
+              icon: 'i-finger-down',
+              line: 'Place your finger on the sensor',
+              sub: 'Single capture',
+              detail: '',
+            });
+            return;
+          case 'captured':
+            renderState('login', {
+              mood: 'captured',
+              icon: 'i-check',
+              line: 'Captured',
+              sub: 'Searching templates…',
+              detail: '',
+            });
+            return;
+          case 'searching':
+            renderState('login', {
+              mood: 'working',
+              icon: 'i-spinner',
+              line: 'Matching against stored fingerprints',
+              sub: '1:N search',
+              detail: '',
+            });
+            return;
+          case 'done': {
+            const r = evt.result || {};
+            if (r.matched) {
+              renderState('login', {
+                mood: 'success',
+                icon: 'i-check',
+                line: `Welcome, ${r.email}`,
+                sub: `Match · score ${r.score}`,
+                detail: '',
+              });
+            } else {
+              const explain =
+                r.reason === 'no_account'   ? 'No account bound to this email — sign up first.' :
+                r.reason === 'no_match'     ? 'Sensor did not recognise this finger.' :
+                r.reason === 'wrong_finger' ? `Matched a different account's slot${r.score ? ` (score ${r.score})` : ''}.` :
+                'Login rejected.';
+              renderState('login', {
+                mood: 'error',
+                icon: 'i-cross',
+                line: 'Rejected',
+                sub: r.reason ? r.reason.replace(/_/g, ' ') : '',
+                detail: explain,
+              });
+            }
+            return;
+          }
+          case 'error':
+            renderState('login', {
+              mood: 'error',
+              icon: 'i-cross',
+              line: 'Login failed',
+              sub: 'Try again',
+              detail: evt.message || '',
+            });
+            return;
+        }
+      }
+
+      // ── Handlers ─────────────────────────────────────────────────
+      async function handleSignup() {
+        const email = $('signup-email').value.trim();
+        if (!email) {
+          renderState('signup', { mood: 'error', icon: 'i-cross', line: 'Enter an email first', sub: '', detail: '' });
+          return;
+        }
+        signupBtn.disabled = true;
+        loginBtn.disabled = true;
+        resetIndicator('signup');
+        try {
+          await streamPost('/api/demo/signup', { email }, applySignupPhase);
+          await refreshAccounts();
+        } catch (err) {
+          renderState('signup', { mood: 'error', icon: 'i-cross', line: 'Signup failed', sub: '', detail: err.message });
+        } finally {
+          signupBtn.disabled = false;
+          loginBtn.disabled = false;
+        }
+      }
+
+      async function handleLogin() {
+        const email = $('login-email').value.trim();
+        if (!email) {
+          renderState('login', { mood: 'error', icon: 'i-cross', line: 'Enter an email first', sub: '', detail: '' });
+          return;
+        }
+        signupBtn.disabled = true;
+        loginBtn.disabled = true;
+        resetIndicator('login');
+        try {
+          await streamPost('/api/demo/login', { email }, applyLoginPhase);
+        } catch (err) {
+          renderState('login', { mood: 'error', icon: 'i-cross', line: 'Login failed', sub: '', detail: err.message });
+        } finally {
+          signupBtn.disabled = false;
+          loginBtn.disabled = false;
+        }
+      }
+
+      async function handleReset() {
+        if (!confirm('Wipe ALL templates on the sensor and clear the accounts map?')) return;
+        signupBtn.disabled = true;
+        loginBtn.disabled = true;
+        resetBtn.disabled = true;
+        try {
+          const r = await fetch('/api/demo/reset', { method: 'POST' });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          resetIndicator('signup');
+          resetIndicator('login');
+          renderState('signup', { mood: 'success', icon: 'i-check', line: 'Sensor wiped', sub: 'All accounts cleared', detail: '' });
+          await refreshAccounts();
+        } catch (err) {
+          renderState('signup', { mood: 'error', icon: 'i-cross', line: 'Reset failed', sub: '', detail: err.message });
+        } finally {
+          signupBtn.disabled = false;
+          loginBtn.disabled = false;
+          resetBtn.disabled = false;
+        }
       }
 
       async function refreshAccounts() {
@@ -309,84 +679,6 @@
 
       function escapeHtml(s) {
         return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-      }
-
-      async function handleSignup() {
-        const email = $('signup-email').value.trim();
-        if (!email) { setStatus(signupStatus, 'Enter an email first.', 'err'); return; }
-        signupBtn.disabled = true;
-        loginBtn.disabled = true;
-        setStatus(signupStatus, 'Place finger on the sensor.\nYou\'ll be asked to lift and place again.', null);
-        try {
-          const r = await fetch('/api/demo/signup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email }),
-          });
-          const data = await r.json();
-          if (!r.ok) throw new Error(data.message || data.error || `HTTP ${r.status}`);
-          setStatus(signupStatus, `Enrolled "${data.email}" at slot ${data.slot}.\nYour fingerprint is now your password.`, 'ok');
-          $('login-email').value = email;
-          await refreshAccounts();
-        } catch (err) {
-          setStatus(signupStatus, `Sign-up failed: ${err.message}`, 'err');
-        } finally {
-          signupBtn.disabled = false;
-          loginBtn.disabled = false;
-        }
-      }
-
-      async function handleLogin() {
-        const email = $('login-email').value.trim();
-        if (!email) { setStatus(loginStatus, 'Enter an email first.', 'err'); return; }
-        signupBtn.disabled = true;
-        loginBtn.disabled = true;
-        setStatus(loginStatus, 'Place finger on the sensor.', null);
-        try {
-          const r = await fetch('/api/demo/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email }),
-          });
-          const data = await r.json();
-          if (r.ok && data.matched) {
-            setStatus(loginStatus, `Welcome, ${data.email}.\nMatched slot, score ${data.score}.`, 'ok');
-          } else {
-            const reason = data.reason === 'no_account'
-              ? 'No account bound to this email yet — sign up first.'
-              : data.reason === 'no_match'
-                ? 'Sensor did not recognise this finger.'
-                : data.reason === 'wrong_finger'
-                  ? `Sensor matched slot ${data.score ? '(score ' + data.score + ')' : ''}, but that slot belongs to a different account.`
-                  : (data.message || data.error || 'Login failed.');
-            setStatus(loginStatus, `Rejected: ${reason}`, 'err');
-          }
-        } catch (err) {
-          setStatus(loginStatus, `Login failed: ${err.message}`, 'err');
-        } finally {
-          signupBtn.disabled = false;
-          loginBtn.disabled = false;
-        }
-      }
-
-      async function handleReset() {
-        if (!confirm('Wipe ALL templates on the sensor and clear the accounts map? This cannot be undone.')) return;
-        signupBtn.disabled = true;
-        loginBtn.disabled = true;
-        resetBtn.disabled = true;
-        try {
-          const r = await fetch('/api/demo/reset', { method: 'POST' });
-          if (!r.ok) throw new Error('Reset failed');
-          setStatus(signupStatus, 'Sensor wiped + accounts cleared.', 'ok');
-          setStatus(loginStatus, 'Idle.', null);
-          await refreshAccounts();
-        } catch (err) {
-          setStatus(signupStatus, `Reset failed: ${err.message}`, 'err');
-        } finally {
-          signupBtn.disabled = false;
-          loginBtn.disabled = false;
-          resetBtn.disabled = false;
-        }
       }
 
       signupBtn.addEventListener('click', handleSignup);

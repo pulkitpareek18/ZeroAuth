@@ -117,22 +117,50 @@ function normalizeEmail(raw: unknown): string | null {
 
 // ─── Sensor flows ─────────────────────────────────────────────────────────
 
-async function enroll(email: string): Promise<Account> {
+/**
+ * Streaming progress events. The bridge emits one of these as a single
+ * NDJSON line every time the sensor flow transitions, so the browser
+ * can show the right "place finger" / "lift finger" / etc. UI.
+ *
+ * `step` distinguishes the two captures during signup. For login it's `0`.
+ */
+export type Phase =
+  | { phase: 'awaiting_finger'; step: 1 | 2 | 0 }
+  | { phase: 'captured'; step: 1 | 2 | 0 }
+  | { phase: 'awaiting_removal'; step: 1 }
+  | { phase: 'removed'; step: 1 }
+  | { phase: 'storing' }
+  | { phase: 'searching' }
+  | { phase: 'done'; result: unknown }
+  | { phase: 'error'; message: string };
+
+type ProgressFn = (event: Phase) => void;
+
+async function enroll(email: string, onProgress: ProgressFn): Promise<Account> {
   if (!sensor) throw new Error('Sensor not initialised');
   return withSensorLock(async () => {
     const existing = accounts.get(email);
     const slot = existing?.slot ?? nextFreeSlot();
 
-    console.log(`[bridge] signup: place finger (capture 1/2) for ${email} @ slot ${slot}`);
+    console.log(`[bridge] signup: capture 1/2 for ${email} @ slot ${slot}`);
+    onProgress({ phase: 'awaiting_finger', step: 1 });
     await sensor!.waitForFinger();
+    onProgress({ phase: 'captured', step: 1 });
     await sensor!.imageToCharBuffer(1);
-    console.log('[bridge] signup: captured. waiting for finger removal…');
-    await sensor!.waitForFingerRemoval();
 
-    console.log('[bridge] signup: place finger (capture 2/2)');
+    console.log('[bridge] signup: waiting for finger removal');
+    onProgress({ phase: 'awaiting_removal', step: 1 });
+    await sensor!.waitForFingerRemoval();
+    onProgress({ phase: 'removed', step: 1 });
+
+    console.log('[bridge] signup: capture 2/2');
+    onProgress({ phase: 'awaiting_finger', step: 2 });
     await sensor!.waitForFinger();
+    onProgress({ phase: 'captured', step: 2 });
     await sensor!.imageToCharBuffer(2);
+
     console.log('[bridge] signup: combining + storing…');
+    onProgress({ phase: 'storing' });
     await sensor!.combineToTemplate();
     await sensor!.storeTemplate(slot);
 
@@ -155,16 +183,19 @@ interface AuthResult {
   reason?: 'no_account' | 'no_match' | 'wrong_finger';
 }
 
-async function authenticate(email: string): Promise<AuthResult> {
+async function authenticate(email: string, onProgress: ProgressFn): Promise<AuthResult> {
   if (!sensor) throw new Error('Sensor not initialised');
   return withSensorLock(async () => {
     const account = accounts.get(email);
-    // Always require a scan so the failure modes feel uniform from the
-    // browser's wall-clock perspective (no instant "no such email" reply).
-    console.log(`[bridge] login: place finger for ${email}`);
+    console.log(`[bridge] login: capture for ${email}`);
+    onProgress({ phase: 'awaiting_finger', step: 0 });
     await sensor!.waitForFinger();
+    onProgress({ phase: 'captured', step: 0 });
     await sensor!.imageToCharBuffer(1);
+
+    onProgress({ phase: 'searching' });
     const result = await sensor!.search();
+
     if (!account) {
       console.log(`[bridge] login: no account for ${email}`);
       return { matched: false, email, reason: 'no_account' };
@@ -209,6 +240,34 @@ function sendJson(res: http.ServerResponse, status: number, body: unknown): void
   res.end(JSON.stringify(body));
 }
 
+/**
+ * Run a sensor flow and stream NDJSON progress events to the response.
+ * The handler always finishes the response cleanly; on throw, emits a
+ * single `error` phase event and ends. Status code stays 200 because
+ * the stream itself carries the success/failure signal — the browser's
+ * fetch already has the body open by the time we know the outcome.
+ */
+async function runStreamed(
+  res: http.ServerResponse,
+  run: (write: (event: Phase) => void) => Promise<void>,
+): Promise<void> {
+  res.writeHead(200, {
+    'Content-Type': 'application/x-ndjson; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'X-Accel-Buffering': 'no',
+  });
+  const write = (event: Phase): void => {
+    res.write(JSON.stringify(event) + '\n');
+  };
+  try {
+    await run(write);
+  } catch (err) {
+    write({ phase: 'error', message: (err as Error).message });
+  } finally {
+    res.end();
+  }
+}
+
 async function sendStatic(res: http.ServerResponse, filePath: string, contentType: string): Promise<void> {
   try {
     const body = await fs.readFile(filePath);
@@ -244,12 +303,10 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 400, { error: 'invalid_email' });
         return;
       }
-      try {
-        const account = await enroll(email);
-        sendJson(res, 201, { email: account.email, slot: account.slot, createdAt: account.createdAt });
-      } catch (err) {
-        sendJson(res, 500, { error: 'enroll_failed', message: (err as Error).message });
-      }
+      await runStreamed(res, async (write) => {
+        const account = await enroll(email, write);
+        write({ phase: 'done', result: { email: account.email, slot: account.slot, createdAt: account.createdAt } });
+      });
       return;
     }
 
@@ -260,12 +317,10 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 400, { error: 'invalid_email' });
         return;
       }
-      try {
-        const result = await authenticate(email);
-        sendJson(res, result.matched ? 200 : 401, result);
-      } catch (err) {
-        sendJson(res, 500, { error: 'login_failed', message: (err as Error).message });
-      }
+      await runStreamed(res, async (write) => {
+        const result = await authenticate(email, write);
+        write({ phase: 'done', result });
+      });
       return;
     }
 
