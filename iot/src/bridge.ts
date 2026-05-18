@@ -43,7 +43,7 @@ import http from 'node:http';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { R307Sensor } from './sensor.js';
+import { CONF, R307Sensor } from './sensor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -131,8 +131,36 @@ export type Phase =
   | { phase: 'removed'; step: 1 }
   | { phase: 'storing' }
   | { phase: 'searching' }
+  /**
+   * A capture-or-combine attempt failed for a retryable reason and we're
+   * about to start the whole two-capture flow over. The UI should reset
+   * its stepper to step 1 and show `reason` so the operator knows what
+   * to do differently this time.
+   */
+  | { phase: 'retry'; attempt: number; reason: string }
   | { phase: 'done'; result: unknown }
   | { phase: 'error'; message: string };
+
+/**
+ * Sensor confirmations that mean "user/sensor action problem, try again"
+ * rather than "protocol or hardware broken." We auto-restart enrollment
+ * on any of these (up to MAX_ENROLL_ATTEMPTS times).
+ */
+function classifyRetryable(err: Error): string | null {
+  const msg = err.message;
+  if (msg.includes(`0x${CONF.COMBINE_FAIL.toString(16)}`)) {
+    return 'The two scans did not match each other. Use the same finger both times, with similar placement.';
+  }
+  if (msg.includes(`0x${CONF.TOO_FUZZY.toString(16)}`)) {
+    return 'The scan was unclear. Try a cleaner, more centred placement.';
+  }
+  if (msg.includes(`0x${CONF.TOO_FEW_FEATURE.toString(16)}`)) {
+    return 'Not enough ridge detail captured. Press a little more firmly.';
+  }
+  return null;
+}
+
+const MAX_ENROLL_ATTEMPTS = 3;
 
 type ProgressFn = (event: Phase) => void;
 
@@ -142,37 +170,59 @@ async function enroll(email: string, onProgress: ProgressFn): Promise<Account> {
     const existing = accounts.get(email);
     const slot = existing?.slot ?? nextFreeSlot();
 
-    console.log(`[bridge] signup: capture 1/2 for ${email} @ slot ${slot}`);
-    onProgress({ phase: 'awaiting_finger', step: 1 });
-    await sensor!.waitForFinger();
-    onProgress({ phase: 'captured', step: 1 });
-    await sensor!.imageToCharBuffer(1);
+    // Whole-flow retry loop. Either of the two captures or the final
+    // RegModel can fail with a "try again" code; in all those cases we
+    // restart from scratch rather than asking the operator to dismiss
+    // an error and click Sign Up again.
+    let lastErr: Error | undefined;
+    for (let attempt = 1; attempt <= MAX_ENROLL_ATTEMPTS; attempt++) {
+      try {
+        console.log(`[bridge] signup: attempt ${attempt}/${MAX_ENROLL_ATTEMPTS}, capture 1/2 for ${email} @ slot ${slot}`);
+        onProgress({ phase: 'awaiting_finger', step: 1 });
+        await sensor!.waitForFinger();
+        onProgress({ phase: 'captured', step: 1 });
+        await sensor!.imageToCharBuffer(1);
 
-    console.log('[bridge] signup: waiting for finger removal');
-    onProgress({ phase: 'awaiting_removal', step: 1 });
-    await sensor!.waitForFingerRemoval();
-    onProgress({ phase: 'removed', step: 1 });
+        console.log('[bridge] signup: waiting for finger removal');
+        onProgress({ phase: 'awaiting_removal', step: 1 });
+        await sensor!.waitForFingerRemoval();
+        onProgress({ phase: 'removed', step: 1 });
 
-    console.log('[bridge] signup: capture 2/2');
-    onProgress({ phase: 'awaiting_finger', step: 2 });
-    await sensor!.waitForFinger();
-    onProgress({ phase: 'captured', step: 2 });
-    await sensor!.imageToCharBuffer(2);
+        console.log('[bridge] signup: capture 2/2');
+        onProgress({ phase: 'awaiting_finger', step: 2 });
+        await sensor!.waitForFinger();
+        onProgress({ phase: 'captured', step: 2 });
+        await sensor!.imageToCharBuffer(2);
 
-    console.log('[bridge] signup: combining + storing…');
-    onProgress({ phase: 'storing' });
-    await sensor!.combineToTemplate();
-    await sensor!.storeTemplate(slot);
+        console.log('[bridge] signup: combining + storing…');
+        onProgress({ phase: 'storing' });
+        await sensor!.combineToTemplate();
+        await sensor!.storeTemplate(slot);
 
-    const account: Account = {
-      email,
-      slot,
-      createdAt: existing?.createdAt ?? new Date().toISOString(),
-    };
-    accounts.set(email, account);
-    await saveAccounts();
-    console.log(`[bridge] signup OK for ${email} @ slot ${slot}`);
-    return account;
+        const account: Account = {
+          email,
+          slot,
+          createdAt: existing?.createdAt ?? new Date().toISOString(),
+        };
+        accounts.set(email, account);
+        await saveAccounts();
+        console.log(`[bridge] signup OK for ${email} @ slot ${slot}`);
+        return account;
+      } catch (err) {
+        const reason = classifyRetryable(err as Error);
+        if (!reason || attempt === MAX_ENROLL_ATTEMPTS) {
+          throw err;
+        }
+        lastErr = err as Error;
+        console.log(`[bridge] signup attempt ${attempt} failed (${reason}); retrying`);
+        // Make sure the finger is off the sensor before the next attempt.
+        // Any error here is fine — the next waitForFinger restarts the cycle.
+        await sensor!.waitForFingerRemoval().catch(() => undefined);
+        onProgress({ phase: 'retry', attempt: attempt + 1, reason });
+      }
+    }
+    // Unreachable — the loop either returns or throws.
+    throw lastErr ?? new Error('Enrollment exhausted without resolution');
   });
 }
 

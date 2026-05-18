@@ -500,6 +500,16 @@
             });
             renderSteps(0, 2);
             return;
+          case 'retry':
+            renderState('signup', {
+              mood: 'lifting',
+              icon: 'i-finger-up',
+              line: `Let's try again — attempt ${evt.attempt} of 3`,
+              sub: 'Resetting captures',
+              detail: evt.reason || '',
+            });
+            renderSteps(0, 0);
+            return;
           case 'done': {
             const r = evt.result || {};
             renderState('signup', {
