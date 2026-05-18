@@ -6,8 +6,12 @@ import { Tenant, PlanTier, PLAN_LIMITS } from '../types';
 /**
  * Hash a password using scrypt (no bcrypt dependency needed).
  * Format: salt:hash (both hex-encoded). 16-byte salt, 64-byte derived key.
+ *
+ * Exported so services that defer tenant creation (pending-signups) can
+ * burn the same CPU at request time and store the hash alongside the
+ * pending row — never re-hash on the verify path.
  */
-async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.randomBytes(16).toString('hex');
   return new Promise((resolve, reject) => {
     crypto.scrypt(password, salt, 64, (err, derivedKey) => {
@@ -64,8 +68,22 @@ export async function createTenant(
   companyName?: string,
   plan: PlanTier = 'free',
 ): Promise<Tenant> {
-  const pool = getPool();
   const passwordHash = await hashPassword(password);
+  return createTenantWithHash(email, passwordHash, companyName, plan);
+}
+
+/**
+ * Create a tenant from an already-hashed password. Used by the email-verify
+ * flow (F-2 v2) so we don't re-hash on the verify path — the hash was
+ * computed at signup time and parked in `pending_signups`.
+ */
+export async function createTenantWithHash(
+  email: string,
+  passwordHash: string,
+  companyName?: string | null,
+  plan: PlanTier = 'free',
+): Promise<Tenant> {
+  const pool = getPool();
   const limits = PLAN_LIMITS[plan];
 
   const result = await pool.query(

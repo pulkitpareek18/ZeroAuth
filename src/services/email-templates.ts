@@ -137,6 +137,69 @@ ${input.attemptIp ? `\nAttempt source IP: ${input.attemptIp}\n` : ''}${FOOTER_TE
 }
 
 /**
+ * Sent on the first leg of the F-2 v2 byte-identical signup flow. Contains
+ * the one-shot magic link that completes account creation. The link is
+ * a 24h-TTL token + URL parameter; nothing in this email is private to
+ * the recipient until they click it.
+ *
+ * Per security-policy §10 we never email plaintext API keys — the key is
+ * revealed in the dashboard once after the verify endpoint completes.
+ */
+export function verifySignupEmail(input: {
+  email: string;
+  verifyUrl: string;
+  expiresAt: Date;
+}): { subject: string; html: string; text: string } {
+  const subject = 'Verify your ZeroAuth account';
+  const safeEmail = escapeHtml(input.email);
+  const expiresIso = input.expiresAt.toISOString();
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; color: #1f2933; line-height: 1.55;">
+      <h2 style="color:#0a0a0a;font-size:20px;margin-bottom:8px;">One click to finish signup.</h2>
+      <p style="font-size:15px;">
+        You started a ZeroAuth account for <strong>${safeEmail}</strong>.
+        Click the button below to verify and finish setup.
+      </p>
+      <p style="margin:24px 0;">
+        <a href="${input.verifyUrl}" style="display:inline-block;padding:12px 28px;background:#0a0a0a;color:#ffffff;text-decoration:none;font-weight:500;letter-spacing:0.06em;font-size:13px;text-transform:uppercase;">Verify and continue</a>
+      </p>
+      <p style="font-size:13px;color:#525252;">
+        Or paste this URL into your browser:<br/>
+        <code style="word-break:break-all;font-size:12px;">${input.verifyUrl}</code>
+      </p>
+      <p style="font-size:13px;color:#525252;">
+        Link expires <code>${expiresIso}</code> (24h after signup). After
+        verification you'll be redirected to the dashboard where your first
+        API key will be revealed once.
+      </p>
+      <p style="font-size:13px;color:#525252;">
+        Didn't try to sign up? You can ignore this email — no account exists
+        on this address until the link is clicked.
+      </p>
+      ${FOOTER_HTML}
+    </div>
+  `;
+
+  const text = `One click to finish signup.
+
+You started a ZeroAuth account for ${input.email}. Open the link below to
+verify and finish setup:
+
+${input.verifyUrl}
+
+Link expires ${expiresIso} (24h after signup). After verification you'll
+be redirected to the dashboard where your first API key will be revealed
+once.
+
+Didn't try to sign up? You can ignore this email — no account exists on
+this address until the link is clicked.
+${FOOTER_TEXT}`;
+
+  return { subject, html, text };
+}
+
+/**
  * Sent when someone requests the whitepaper from the landing page. The PDF
  * is attached so the recipient never has to come back to a download page;
  * the email itself is the delivery channel.

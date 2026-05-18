@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { ApiError } from '../../lib/api';
 import { Button, Input, Label } from '../../components/ui';
@@ -8,10 +8,16 @@ export function Login() {
   const { status, login } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Set by GET /api/console/verify-signup when a verify link is clicked twice
+  // (the account was already created by the first click). Tells the user
+  // they're past signup and just need to sign in.
+  const alreadyVerified = searchParams.get('already_verified') === '1';
 
   if (status === 'authenticated') {
     const redirectTo = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/overview';
@@ -34,6 +40,11 @@ export function Login() {
 
   return (
     <AuthLayout title="Welcome back" subtitle="Sign in to your ZeroAuth developer console.">
+      {alreadyVerified ? (
+        <div className="mb-4 rounded-md border border-[var(--color-success)]/40 bg-[var(--color-success)]/10 px-3 py-2 text-xs text-[var(--color-success)]">
+          Your email is verified. Sign in to continue.
+        </div>
+      ) : null}
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <div>
           <Label htmlFor="email">Email</Label>

@@ -46,6 +46,25 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_tenants_email ON tenants(email);
   CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
 
+  -- ─── Pending signups (F-2 v2: byte-identical /api/console/signup) ───
+  -- Holds a hashed password + intended company name keyed by a single-use
+  -- verification token. Created when POST /api/console/signup is called
+  -- for a fresh email; consumed when the user clicks the verify link.
+  -- Lifetime: 24h, after which the row is GC'd by a periodic cleanup
+  -- (the consume path also rejects expired rows defensively).
+  CREATE TABLE IF NOT EXISTS pending_signups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    company_name VARCHAR(255),
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    consumed_at TIMESTAMPTZ
+  );
+  CREATE INDEX IF NOT EXISTS idx_pending_signups_token ON pending_signups(token_hash);
+  CREATE INDEX IF NOT EXISTS idx_pending_signups_expires ON pending_signups(expires_at) WHERE consumed_at IS NULL;
+
   -- ─── API Keys ───────────────────────────────────────────
   -- Keys are prefixed: za_live_* (production) or za_test_* (sandbox)
   -- Only the SHA-256 hash is stored; the raw key is shown once at creation.

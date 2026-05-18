@@ -5,6 +5,7 @@ import { AppShell, EnvironmentProvider } from './components/layout/AppShell';
 import { ToastViewport } from './components/ui';
 import { Login } from './routes/public/Login';
 import { Signup } from './routes/public/Signup';
+import { SignupComplete } from './routes/public/SignupComplete';
 import { Overview } from './routes/Overview';
 import { ApiKeys } from './routes/ApiKeys';
 import { Users } from './routes/Users';
@@ -55,6 +56,7 @@ export function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/signup-complete" element={<SignupComplete />} />
 
               <Route element={<RequireAuth />}>
                 <Route element={<AppShell />}>
