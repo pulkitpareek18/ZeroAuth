@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import path from 'path';
 import { config } from './config';
 import { errorHandler, notFoundHandler } from './middleware/error-handler';
+import { hostRouter } from './middleware/host-router';
 import { logger } from './services/logger';
 
 // Legacy API routes (internal / backward compatible)
@@ -83,6 +84,11 @@ export function createApp() {
   app.use('/api/auth/zkp', zkpRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/leads', leadsRoutes);
+
+  // Host-aware gate. Anything on api.zeroauth.dev that didn't match an
+  // API route stops here (JSON 404) instead of being served the
+  // landing-page index.html by the static handlers below.
+  app.use(hostRouter);
 
   // Serve React dashboard in production
   const dashboardPath = path.join(__dirname, '..', 'dashboard', 'dist');

@@ -20,6 +20,29 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="canonical" href="https://zeroauth.dev/" />
 
+  <!-- Resolve the active theme before first paint so the page never
+       flashes the wrong palette. Persisted choice in localStorage wins;
+       otherwise we follow the OS preference. Sets data-theme on <html>
+       so the explicit-override CSS below can match. -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('zeroauth.theme');
+        var theme;
+        if (stored === 'dark' || stored === 'light') {
+          theme = stored;
+        } else {
+          theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) {
+        /* private mode / disabled storage — fall back to media query */
+      }
+    })();
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Inter+Tight:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
@@ -65,8 +88,12 @@
       --section-y: clamp(80px, 10vw, 128px);
     }
 
+    /* Dark tokens — applied either when the OS prefers dark (and the
+       user hasn't picked a different theme explicitly) OR when the
+       user has chosen dark via the in-page toggle. The :not selector
+       lets an explicit data-theme="light" win over the OS pref. */
     @media (prefers-color-scheme: dark) {
-      :root {
+      :root:not([data-theme="light"]) {
         --bg: #0a0a0a;
         --bg-muted: #121212;
         --bg-inverse: #fafafa;
@@ -80,17 +107,30 @@
         --line-strong: #404040;
         --line-inverse: #d4d4d4;
       }
-      /* The nav is sticky with a translucent backdrop; the colour we
-         mix in has to match the dark page background, not the light. */
-      .nav { background: rgba(10,10,10,0.86); }
-      /* The brand mark in the nav + footer is the black SVG by default.
-         Swap to the white variant for dark mode via a CSS filter so we
-         don't need a second <img> element. */
-      .brand img, .footer-brand-col .brand img {
+      :root:not([data-theme="light"]) .nav { background: rgba(10,10,10,0.86); }
+      :root:not([data-theme="light"]) .brand img,
+      :root:not([data-theme="light"]) .footer-brand-col .brand img {
         filter: invert(1);
       }
-      /* Same for any inline <img> inside .demo-frame (none today, but
-         defensive — the iframe carries its own theme). */
+    }
+    :root[data-theme="dark"] {
+      --bg: #0a0a0a;
+      --bg-muted: #121212;
+      --bg-inverse: #fafafa;
+      --bg-inverse-raised: #ededed;
+      --ink: #fafafa;
+      --ink-2: #a3a3a3;
+      --ink-3: #6e6e6e;
+      --ink-inverse: #0a0a0a;
+      --ink-inverse-2: #525252;
+      --line: #262626;
+      --line-strong: #404040;
+      --line-inverse: #d4d4d4;
+    }
+    :root[data-theme="dark"] .nav { background: rgba(10,10,10,0.86); }
+    :root[data-theme="dark"] .brand img,
+    :root[data-theme="dark"] .footer-brand-col .brand img {
+      filter: invert(1);
     }
 
     html { scroll-behavior: smooth; }
@@ -274,6 +314,29 @@
       transition: color 180ms ease;
     }
     .nav-sign-in:hover { color: var(--ink); }
+
+    .theme-toggle {
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink-2);
+      background: transparent;
+      border: 1px solid var(--line);
+      transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
+      cursor: pointer;
+    }
+    .theme-toggle:hover {
+      color: var(--ink);
+      border-color: var(--line-strong);
+      background: var(--bg-muted);
+    }
+    .theme-toggle .theme-toggle-sun,
+    .theme-toggle .theme-toggle-moon { display: none; }
+    .theme-toggle[data-current-theme="light"] .theme-toggle-moon { display: block; }
+    .theme-toggle[data-current-theme="dark"]  .theme-toggle-sun  { display: block; }
 
     @media (max-width: 880px) {
       .nav-links, .nav-sign-in { display: none; }
@@ -954,7 +1017,16 @@
         <a href="https://github.com/zeroauth-dev/ZeroAuth">GitHub</a>
       </nav>
 
-      <div style="display:flex; align-items:center; gap:20px;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Switch theme" title="Switch theme">
+          <svg class="theme-toggle-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+          </svg>
+          <svg class="theme-toggle-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
+          </svg>
+        </button>
         <a href="https://console.zeroauth.dev/login" class="nav-sign-in">Sign in</a>
         <a href="https://console.zeroauth.dev/signup" class="nav-cta">Get started <span aria-hidden="true">→</span></a>
       </div>
@@ -1562,6 +1634,39 @@ result = za.verifications.<span class="c-fn">create</span>(
   </footer>
 
   <script>
+    // Theme toggle — flips between light + dark, persists to
+    // localStorage. The early-paint script in <head> seeds data-theme
+    // before first paint so there's no FOUC; this just handles clicks
+    // and the icon swap.
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+
+      function getActiveTheme() {
+        var explicit = document.documentElement.getAttribute('data-theme');
+        if (explicit === 'dark' || explicit === 'light') return explicit;
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light';
+      }
+
+      function paintButton(theme) {
+        var label = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+        btn.setAttribute('aria-label', label);
+        btn.setAttribute('title', label);
+        btn.setAttribute('data-current-theme', theme);
+      }
+
+      btn.addEventListener('click', function () {
+        var next = getActiveTheme() === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('zeroauth.theme', next); } catch (e) { /* ignore */ }
+        paintButton(next);
+      });
+
+      paintButton(getActiveTheme());
+    })();
+
     // Code-tab switcher
     (function () {
       var tabs = document.querySelectorAll('.code-tab');

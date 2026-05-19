@@ -74,19 +74,22 @@ api.zeroauth.dev {
 }
 
 # ─── console.zeroauth.dev — developer console ───────────────────
-# The upstream Express app serves the dashboard SPA at /dashboard/*.
-# The Vite-built bundle uses `/dashboard/` as its base, so the SPA's
-# index.html already references /dashboard/assets/X.js.
+# The upstream Express app serves the dashboard SPA at /dashboard/*
+# and the console JSON API at /api/console/*. The Vite-built bundle
+# uses `/dashboard/` as its base, so its index.html references
+# /dashboard/assets/X.js.
 #
-# We want users to see a bare-domain UX (console.zeroauth.dev/login,
-# not console.zeroauth.dev/dashboard/login), so prepend /dashboard for
-# requests that don't already carry it. The guard avoids the
-# double-prefix /dashboard/dashboard/assets/... that broke asset
-# loading and left the SPA blank.
+# Users see a bare-domain UX (console.zeroauth.dev/login, not
+# /dashboard/login), so we prepend /dashboard when the path doesn't
+# already carry it — BUT we also have to leave API paths alone, since
+# the SPA fetches /api/console/* with relative URLs. Without this
+# exception the rewrite turned every API call into /dashboard/api/...,
+# Express's SPA catch-all returned HTML, fetch() got HTML where it
+# expected JSON, React crashed, and the page rendered blank.
 console.zeroauth.dev {
 	encode zstd gzip
 
-	@needs_prefix not path /dashboard /dashboard/*
+	@needs_prefix not path /dashboard /dashboard/* /api /api/* /v1 /v1/*
 	rewrite @needs_prefix /dashboard{uri}
 
 	reverse_proxy zeroauth-prod:3000 {
@@ -100,13 +103,13 @@ console.zeroauth.dev {
 }
 
 # ─── docs.zeroauth.dev — Docusaurus build ───────────────────────
-# Mirrors the console story: Docusaurus is built with baseUrl /docs/
-# so its rendered HTML already references /docs/assets/X.css. Only
-# prepend /docs when not already present.
+# Same shape as console: Docusaurus is built with baseUrl /docs/, the
+# API playground component fetches /v1/* with relative URLs, so we
+# pass those through verbatim and only prepend /docs for SPA routes.
 docs.zeroauth.dev {
 	encode zstd gzip
 
-	@needs_prefix not path /docs /docs/*
+	@needs_prefix not path /docs /docs/* /api /api/* /v1 /v1/*
 	rewrite @needs_prefix /docs{uri}
 
 	reverse_proxy zeroauth-prod:3000 {
