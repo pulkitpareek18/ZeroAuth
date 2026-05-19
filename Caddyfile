@@ -3,10 +3,7 @@
 #
 # Usage on the production host:
 #   docker compose --profile prod up -d --build
-#
-# This Caddyfile is consumed by the `caddy` service in docker-compose.yml,
-# which is on the same Compose network as `zeroauth-prod`, so we reach the
-# app via its service name.
+#   docker exec zeroauth-caddy caddy reload --config /etc/caddy/Caddyfile
 #
 # DNS prerequisites (operator action, before deploy):
 #   A     zeroauth.dev          → 104.207.143.14
@@ -14,10 +11,6 @@
 #   A     api.zeroauth.dev      → 104.207.143.14
 #   A     console.zeroauth.dev  → 104.207.143.14
 #   A     docs.zeroauth.dev     → 104.207.143.14
-# (or CNAMEs aliasing the apex). All five hostnames terminate at this one
-# Caddy instance which routes by Host header to the right path-prefix on
-# the upstream Express app. Same backend container; different vhost,
-# different rewrite.
 
 # ─── Shared snippets ────────────────────────────────────────────
 (security_headers) {
@@ -41,20 +34,21 @@
 	}
 }
 
-# ─── Apex: marketing site + signup ──────────────────────────────
+# ─── Apex: marketing site + signup + apex 308s for legacy paths ─
 zeroauth.dev, www.zeroauth.dev {
 	encode zstd gzip
 
-	# The apex serves /public/index.html and the marketing /demo.html.
-	# Anything under /v1, /api, /dashboard, /docs that hits the apex
-	# gets a 308 to the new canonical subdomain so legacy URLs don't
-	# silently break for bookmarks + CI scripts.
-	redir /v1/*     https://api.zeroauth.dev{uri}     permanent
-	redir /api/*    https://api.zeroauth.dev{uri}     permanent
-	redir /dashboard /dashboard/                       permanent
-	redir /dashboard/* https://console.zeroauth.dev{uri.path.substr(10}{uri.query} permanent
-	redir /docs     /docs/                             permanent
-	redir /docs/*   https://docs.zeroauth.dev{uri.path.substr(5}{uri.query} permanent
+	# Legacy URLs from the pre-split era get a permanent redirect to
+	# the right subdomain. Use path_regexp with capture groups to keep
+	# the suffix (so /dashboard/login → console.zeroauth.dev/login).
+	@dash path_regexp dash ^/dashboard(/.*)?$
+	redir @dash https://console.zeroauth.dev{re.dash.1} permanent
+
+	@docs path_regexp doc ^/docs(/.*)?$
+	redir @docs https://docs.zeroauth.dev{re.doc.1} permanent
+
+	redir /v1/*  https://api.zeroauth.dev{uri}  permanent
+	redir /api/* https://api.zeroauth.dev{uri}  permanent
 
 	reverse_proxy zeroauth-prod:3000 {
 		header_up X-Real-IP {remote_host}
@@ -72,11 +66,6 @@ zeroauth.dev, www.zeroauth.dev {
 api.zeroauth.dev {
 	encode zstd gzip
 
-	# Strip the public path to map onto the same Express app. The
-	# upstream still recognises /v1/* and /api/*; on api.zeroauth.dev
-	# we keep the URI as-is (no rewrite) — clients hit
-	# https://api.zeroauth.dev/v1/verifications which proxies to
-	# zeroauth-prod:3000/v1/verifications.
 	reverse_proxy zeroauth-prod:3000 {
 		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-For {remote_host}
@@ -84,28 +73,19 @@ api.zeroauth.dev {
 		header_up X-Forwarded-Host {host}
 	}
 
-	# Hard 404 on any request to a non-API path so api.zeroauth.dev
-	# doesn't accidentally serve dashboard / docs HTML if the
-	# upstream's catch-all routes change.
-	@nonapi not path /v1/* /api/* /.well-known/* /health
-	respond @nonapi "Not an API route" 404
-
 	import security_headers
 	import json_log
 }
 
 # ─── console.zeroauth.dev — developer console ───────────────────
+# The upstream Express app serves the dashboard SPA at /dashboard/*.
+# On this vhost users see a bare-domain UX, so we rewrite the request
+# path to add the /dashboard prefix before proxying upstream.
 console.zeroauth.dev {
 	encode zstd gzip
 
-	# Strip /dashboard prefix expected by the Vite-built SPA. Express
-	# serves the dashboard at /dashboard/*; on console.zeroauth.dev we
-	# want users to land at "/", so rewrite incoming "/" → "/dashboard/".
-	rewrite / /dashboard/
-	rewrite /* /dashboard{uri}
+	rewrite * /dashboard{uri}
 
-	# Cookies issued by /api/console/* are scoped to ".zeroauth.dev" so
-	# the console + API share session state across the subdomain boundary.
 	reverse_proxy zeroauth-prod:3000 {
 		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-For {remote_host}
@@ -122,9 +102,7 @@ console.zeroauth.dev {
 docs.zeroauth.dev {
 	encode zstd gzip
 
-	# Same rewrite story — strip /docs/* from the upstream path.
-	rewrite / /docs/
-	rewrite /* /docs{uri}
+	rewrite * /docs{uri}
 
 	reverse_proxy zeroauth-prod:3000 {
 		header_up X-Real-IP {remote_host}
