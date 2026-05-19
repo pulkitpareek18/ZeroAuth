@@ -60,15 +60,15 @@ export function welcomeEmail(input: {
       <p style="font-size:15px;">
         Your first API key was revealed once in the dashboard — copy it to your password manager
         if you haven't yet. <strong>We never email plaintext API keys</strong>, by design (per our security policy).
-        If you lost it, mint a new one from <a href="https://zeroauth.dev/dashboard/api-keys" style="color:#4285F4;">the API Keys page</a>.
+        If you lost it, mint a new one from <a href="https://console.zeroauth.dev/api-keys" style="color:#4285F4;">the API Keys page</a>.
       </p>
       <p style="font-size:15px;">
         Next steps:
       </p>
       <ul style="font-size:15px;line-height:1.7;">
-        <li>Read the <a href="https://zeroauth.dev/docs/getting-started/quickstart/" style="color:#4285F4;">Quickstart</a></li>
-        <li>Verify your first proof: <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px;font-size:13px;">curl https://zeroauth.dev/v1/auth/zkp/verify</code></li>
-        <li>Skim the <a href="https://zeroauth.dev/docs/whitepaper.pdf" style="color:#4285F4;">Pramaan whitepaper</a> (25 pages, technical)</li>
+        <li>Read the <a href="https://docs.zeroauth.dev/getting-started/quickstart/" style="color:#4285F4;">Quickstart</a></li>
+        <li>Verify your first proof: <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px;font-size:13px;">curl https://api.zeroauth.dev/v1/auth/zkp/verify</code></li>
+        <li>Skim the <a href="https://docs.zeroauth.dev/whitepaper.pdf" style="color:#4285F4;">Pramaan whitepaper</a> (25 pages, technical)</li>
       </ul>
       ${FOOTER_HTML}
     </div>
@@ -78,12 +78,12 @@ export function welcomeEmail(input: {
 
 Your developer account ${input.email} is active${input.companyName ? ` and linked to ${input.companyName}` : ''}.
 
-Your first API key was revealed once in the dashboard — copy it to your password manager if you haven't yet. We never email plaintext API keys, by design (per our security policy). If you lost it, mint a new one from https://zeroauth.dev/dashboard/api-keys
+Your first API key was revealed once in the dashboard — copy it to your password manager if you haven't yet. We never email plaintext API keys, by design (per our security policy). If you lost it, mint a new one from https://console.zeroauth.dev/api-keys
 
 Next steps:
-- Read the Quickstart: https://zeroauth.dev/docs/getting-started/quickstart/
-- Verify your first proof: curl https://zeroauth.dev/v1/auth/zkp/verify
-- Skim the Pramaan whitepaper: https://zeroauth.dev/docs/whitepaper.pdf
+- Read the Quickstart: https://docs.zeroauth.dev/getting-started/quickstart/
+- Verify your first proof: curl https://api.zeroauth.dev/v1/auth/zkp/verify
+- Skim the Pramaan whitepaper: https://docs.zeroauth.dev/whitepaper.pdf
 ${FOOTER_TEXT}`;
 
   return { subject, html, text };
@@ -111,12 +111,12 @@ export function signupAttemptedNoticeEmail(input: {
       </p>
       <p style="font-size:15px;">
         <strong>If this was you</strong> (you forgot you had an account), sign in at
-        <a href="https://zeroauth.dev/dashboard/login" style="color:#4285F4;">zeroauth.dev/dashboard/login</a>.
+        <a href="https://console.zeroauth.dev/login" style="color:#4285F4;">console.zeroauth.dev/login</a>.
       </p>
       <p style="font-size:15px;">
         <strong>If this wasn't you</strong>, your account is unaffected — no password attempt was made.
         Consider rotating your password as a precaution:
-        <a href="https://zeroauth.dev/dashboard/login" style="color:#4285F4;">dashboard/login</a> → forgot password.
+        <a href="https://console.zeroauth.dev/login" style="color:#4285F4;">dashboard/login</a> → forgot password.
       </p>
       ${input.attemptIp ? `<p style="font-size:13px;color:#6b7280;">Attempt source IP: <code>${escapeHtml(input.attemptIp)}</code></p>` : ''}
       ${FOOTER_HTML}
@@ -128,7 +128,7 @@ export function signupAttemptedNoticeEmail(input: {
 Someone just tried to create a new ZeroAuth account with ${input.email}.
 Your account already exists, so the signup was rejected.
 
-If this was you (you forgot you had an account), sign in at https://zeroauth.dev/dashboard/login
+If this was you (you forgot you had an account), sign in at https://console.zeroauth.dev/login
 
 If this wasn't you, your account is unaffected — no password attempt was made. Consider rotating your password as a precaution: dashboard/login → forgot password.
 ${input.attemptIp ? `\nAttempt source IP: ${input.attemptIp}\n` : ''}${FOOTER_TEXT}`;
@@ -228,8 +228,8 @@ export function whitepaperEmail(): { subject: string; html: string; text: string
         Useful next steps:
       </p>
       <ul style="font-size:15px;line-height:1.7;">
-        <li>Read the <a href="https://zeroauth.dev/docs/getting-started/quickstart/" style="color:#0a0a0a;text-decoration:underline;">Quickstart</a></li>
-        <li>Browse the <a href="https://zeroauth.dev/docs/reference/api-reference" style="color:#0a0a0a;text-decoration:underline;">API reference</a></li>
+        <li>Read the <a href="https://docs.zeroauth.dev/getting-started/quickstart/" style="color:#0a0a0a;text-decoration:underline;">Quickstart</a></li>
+        <li>Browse the <a href="https://docs.zeroauth.dev/reference/api-reference" style="color:#0a0a0a;text-decoration:underline;">API reference</a></li>
         <li>Self-host the <a href="https://github.com/zeroauth-dev/ZeroAuth" style="color:#0a0a0a;text-decoration:underline;">reference implementation</a></li>
       </ul>
       ${FOOTER_HTML}
@@ -250,8 +250,8 @@ If you have questions after reading, reply to this email or open an issue at
 https://github.com/zeroauth-dev/ZeroAuth/issues
 
 Useful next steps:
-- Read the Quickstart: https://zeroauth.dev/docs/getting-started/quickstart/
-- Browse the API reference: https://zeroauth.dev/docs/reference/api-reference
+- Read the Quickstart: https://docs.zeroauth.dev/getting-started/quickstart/
+- Browse the API reference: https://docs.zeroauth.dev/reference/api-reference
 - Self-host the reference implementation: https://github.com/zeroauth-dev/ZeroAuth
 ${FOOTER_TEXT}`;
 
