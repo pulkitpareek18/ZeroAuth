@@ -240,7 +240,7 @@ export function AppShell() {
 
           <div className="flex items-center gap-3">
             <a
-              href="/docs/"
+              href={import.meta.env.VITE_DOCS_BASE_URL ?? 'https://docs.zeroauth.dev/'}
               className="hidden md:inline-flex items-center gap-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
               target="_blank"
               rel="noopener noreferrer"
