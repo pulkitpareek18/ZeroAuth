@@ -20,6 +20,16 @@ docker compose --profile "$COMPOSE_PROFILE" config >/dev/null
 echo "Deploying ZeroAuth with Docker Compose..."
 docker compose --profile "$COMPOSE_PROFILE" up -d --build --remove-orphans
 
+# `up -d --build` does NOT restart a service when only its bind-mounted
+# files (e.g. Caddyfile) changed — Docker only recreates on image /
+# environment / volume-definition drift. Force an explicit Caddy reload
+# so config changes land on every deploy. Idempotent + fast (~2s).
+if docker ps --format '{{.Names}}' | grep -q '^zeroauth-caddy$'; then
+  echo "Reloading Caddy to pick up Caddyfile changes..."
+  docker exec zeroauth-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile \
+    || docker restart zeroauth-caddy
+fi
+
 echo "Waiting for zeroauth-prod health check..."
 attempt=1
 while [[ $attempt -le $HEALTHCHECK_ATTEMPTS ]]; do
