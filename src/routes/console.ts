@@ -316,15 +316,28 @@ router.get('/verify-signup', async (req: Request, res: Response) => {
       apiKeyEnv: defaultKey.environment,
     }), 'utf8').toString('base64url');
 
+    // Cross-subdomain cookie. After the api./console.zeroauth.dev split
+    // the verify-signup endpoint lives on api.zeroauth.dev but the
+    // dashboard reads the reveal cookie on console.zeroauth.dev — they
+    // share state only if the cookie is scoped to the eTLD+1.
+    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+    const apexHost = (() => {
+      try { return new URL(config.consoleBaseUrl).hostname; } catch { return null; }
+    })();
+    const cookieDomain = apexHost && apexHost.endsWith('zeroauth.dev') ? '.zeroauth.dev' : undefined;
     res.cookie('zeroauth_signup_reveal', revealPayload, {
       httpOnly: false, // dashboard JS must read it
-      secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
+      secure: isHttps,
       sameSite: 'lax',
       maxAge: 5 * 60 * 1000, // 5 minutes — single-use; dashboard clears on read
-      path: '/dashboard',
+      path: '/',
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
     });
 
-    res.redirect(303, '/dashboard/signup-complete');
+    // After verification we land the user on the console. In dev that's
+    // /dashboard/signup-complete on the same host; in prod it's
+    // console.zeroauth.dev/signup-complete.
+    res.redirect(303, `${config.consoleBaseUrl.replace(/\/$/, '')}/signup-complete`);
   } catch (err) {
     logger.error('Console: verify-signup error', { error: (err as Error).message });
     res.status(500).send(renderVerifyResultHtml({ ok: false, message: 'Something went wrong completing your signup. Please try the verification link again, or sign up afresh.' }));

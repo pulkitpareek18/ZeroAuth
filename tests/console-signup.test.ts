@@ -311,7 +311,10 @@ describe('GET /api/console/verify-signup — F-2 v2 second leg', () => {
     );
     expect(createApiKeyMock).toHaveBeenCalledWith('tenant-new', 'Default Live Key', 'live');
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/dashboard/signup-complete');
+    // Redirect target is the resolved consoleBaseUrl + '/signup-complete'.
+    // In dev that's http://localhost:3000/dashboard/signup-complete; in
+    // prod it's https://console.zeroauth.dev/signup-complete.
+    expect(res.headers.location).toMatch(/\/signup-complete$/);
     // One-time reveal cookie is set so the dashboard can read it once.
     const setCookie = res.headers['set-cookie'] as unknown as string[] | undefined;
     expect(setCookie?.join(';')).toMatch(/zeroauth_signup_reveal=/);
