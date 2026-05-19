@@ -5,7 +5,7 @@ Get ZeroAuth running in under 5 minutes. No packages to install — just API cal
 ## Step 1: Create Your Account
 
 ```bash
-curl -X POST https://zeroauth.dev/api/console/signup \
+curl -X POST https://api.zeroauth.dev/api/console/signup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "dev@yourcompany.com",
@@ -41,7 +41,7 @@ The server stores only a SHA-256 hash — the raw key is never persisted.
 ### Register a Device
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/devices \
+curl -X POST https://api.zeroauth.dev/v1/devices \
   -H "Authorization: Bearer za_live_YOUR_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{
@@ -55,7 +55,7 @@ curl -X POST https://zeroauth.dev/v1/devices \
 ### Create an Enrolled User
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/users \
+curl -X POST https://api.zeroauth.dev/v1/users \
   -H "Authorization: Bearer za_live_YOUR_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{
@@ -68,7 +68,7 @@ curl -X POST https://zeroauth.dev/v1/users \
 ### Get a Nonce for ZKP
 
 ```bash
-curl https://zeroauth.dev/v1/auth/zkp/nonce \
+curl https://api.zeroauth.dev/v1/auth/zkp/nonce \
   -H "Authorization: Bearer za_live_YOUR_KEY_HERE"
 ```
 
@@ -83,7 +83,7 @@ curl https://zeroauth.dev/v1/auth/zkp/nonce \
 ### Register an Identity
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/auth/zkp/register \
+curl -X POST https://api.zeroauth.dev/v1/auth/zkp/register \
   -H "Authorization: Bearer za_live_YOUR_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{"biometricTemplate": "BASE64_ENCODED_BIOMETRIC_DATA"}'
@@ -92,7 +92,7 @@ curl -X POST https://zeroauth.dev/v1/auth/zkp/register \
 ### Verify a ZK Proof
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/auth/zkp/verify \
+curl -X POST https://api.zeroauth.dev/v1/auth/zkp/verify \
   -H "Authorization: Bearer za_live_YOUR_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{
@@ -112,7 +112,7 @@ curl -X POST https://zeroauth.dev/v1/auth/zkp/verify \
 ### Record a Verification Event
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/verifications \
+curl -X POST https://api.zeroauth.dev/v1/verifications \
   -H "Authorization: Bearer za_live_YOUR_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{
@@ -127,7 +127,7 @@ curl -X POST https://zeroauth.dev/v1/verifications \
 ### Record Attendance
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/attendance \
+curl -X POST https://api.zeroauth.dev/v1/attendance \
   -H "Authorization: Bearer za_live_YOUR_KEY_HERE" \
   -H "Content-Type: application/json" \
   -d '{
@@ -141,7 +141,7 @@ curl -X POST https://zeroauth.dev/v1/attendance \
 ## Step 3: Check Your Usage
 
 ```bash
-curl https://zeroauth.dev/api/console/usage \
+curl https://api.zeroauth.dev/api/console/usage \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN"
 ```
 

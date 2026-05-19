@@ -21,7 +21,7 @@ All OIDC endpoints require an API key with the appropriate scope.
 **Required scope:** `oidc:authorize`
 
 ```bash
-curl https://zeroauth.dev/v1/auth/oidc/authorize \
+curl https://api.zeroauth.dev/v1/auth/oidc/authorize \
   -H "Authorization: Bearer za_live_YOUR_KEY"
 ```
 
@@ -41,7 +41,7 @@ Redirect the user's browser to `authorizeUrl`. ZeroAuth handles PKCE challenge g
 **Required scope:** `oidc:callback`
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/auth/oidc/callback \
+curl -X POST https://api.zeroauth.dev/v1/auth/oidc/callback \
   -H "Authorization: Bearer za_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -83,7 +83,7 @@ Validation enforced:
 Create a key with OIDC scopes:
 
 ```bash
-curl -X POST https://zeroauth.dev/api/console/keys \
+curl -X POST https://api.zeroauth.dev/api/console/keys \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

@@ -84,7 +84,7 @@ The circuit artifacts needed for client-side proof generation:
 Fetch circuit metadata from the API:
 
 ```bash
-curl https://zeroauth.dev/v1/auth/zkp/circuit-info \
+curl https://api.zeroauth.dev/v1/auth/zkp/circuit-info \
   -H "Authorization: Bearer za_live_YOUR_KEY"
 ```
 

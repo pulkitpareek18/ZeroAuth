@@ -11,12 +11,12 @@
 
 | Surface | Exposure | Notes |
 |---|---|---|
-| `https://zeroauth.dev/v1/*` | Public, tenant-API-key authenticated | Scoped to `(tenant_id, environment)`. Rate-limit + monthly quota per tenant. |
-| `https://zeroauth.dev/api/console/*` | Public, JWT-authenticated for everything except signup + login | Per-IP rate limit on signup/login. Password policy enforced. |
-| `https://zeroauth.dev/api/admin/*` | Public, `x-api-key` (single shared admin key in `.env`) | Read-only. |
-| `https://zeroauth.dev/api/health` | Public, unauthenticated | Health + subsystem status only. |
-| `https://zeroauth.dev/api/auth/saml/*`, `…/oidc/*` | Public, gated by `ENABLE_DEMO_AUTH` flag | Demo stubs; **do not** validate real SAML signatures or OIDC tokens. Off in production. |
-| `https://zeroauth.dev/api/leads/*` | Public, unauthenticated | Marketing forms; writes to `leads` table. |
+| `https://api.zeroauth.dev/v1/*` | Public, tenant-API-key authenticated | Scoped to `(tenant_id, environment)`. Rate-limit + monthly quota per tenant. |
+| `https://api.zeroauth.dev/api/console/*` | Public, JWT-authenticated for everything except signup + login | Per-IP rate limit on signup/login. Password policy enforced. |
+| `https://api.zeroauth.dev/api/admin/*` | Public, `x-api-key` (single shared admin key in `.env`) | Read-only. |
+| `https://api.zeroauth.dev/api/health` | Public, unauthenticated | Health + subsystem status only. |
+| `https://api.zeroauth.dev/api/auth/saml/*`, `…/oidc/*` | Public, gated by `ENABLE_DEMO_AUTH` flag | Demo stubs; **do not** validate real SAML signatures or OIDC tokens. Off in production. |
+| `https://api.zeroauth.dev/api/leads/*` | Public, unauthenticated | Marketing forms; writes to `leads` table. |
 | Base Sepolia `DIDRegistry` | Public RPC, `onlyOwner` writes | Deployer wallet is the single owner. Rotate via `npm run wallet:rotate`. |
 | VPS SSH (`104.207.143.14:22`) | Internet, key-only | `root` (laptop key) and `zeroauth-deploy` (CI key) authorized. UFW open only on 22/80/443. |
 

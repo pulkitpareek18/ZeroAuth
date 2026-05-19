@@ -1,0 +1,44 @@
+---
+title: API playground
+sidebar_label: Playground
+description: Try ZeroAuth's REST surface in the browser. Paste your API key, pick an endpoint, hit Send.
+---
+
+import ApiPlayground from '@site/src/components/ApiPlayground';
+
+# API playground
+
+A no-install way to hit the ZeroAuth REST surface. Paste your
+`za_test_…` or `za_live_…` key, choose an endpoint from the dropdown,
+and Send. The response status, body, and round-trip time render right
+underneath.
+
+:::caution Your key never leaves your browser
+The playground runs the request from your browser directly to
+`api.zeroauth.dev`. Nothing on the docs site (or in any analytics)
+captures your API key — open the Network panel to confirm. If you'd
+like to use the playground against a self-hosted deployment, change
+the **API base** field at the top.
+:::
+
+<ApiPlayground />
+
+## Tips
+
+- **Test keys vs live keys.** `za_test_…` keys only see test-environment
+  data and don't accrue billing. Mint one from the
+  [API Keys page](https://console.zeroauth.dev/api-keys) before you
+  start poking.
+- **CORS.** `api.zeroauth.dev` allows cross-origin requests from
+  `docs.zeroauth.dev`, the dashboard, the landing site, and localhost.
+  If you're testing from a self-hosted docs build, add your origin to
+  `CORS_ORIGINS` on the API.
+- **Rate limits.** Each endpoint is gated by the standard per-tenant
+  limiter. If you hammer the playground you'll see a `429` with the
+  remaining window in the response headers.
+
+## See also
+
+- [API reference](./api-reference.md) — header formats + every endpoint
+- [Central API delivery plan](../operations/central-api-delivery-plan.md) — how the REST surface is sliced over the 8-week build
+- [Environment variables](./environment-variables.md) — for self-hosted setups

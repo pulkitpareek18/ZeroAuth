@@ -18,7 +18,7 @@ za_{environment}_{48 hex characters}
 A default live key is automatically created when you sign up:
 
 ```bash
-curl -X POST https://zeroauth.dev/api/console/signup \
+curl -X POST https://api.zeroauth.dev/api/console/signup \
   -H "Content-Type: application/json" \
   -d '{"email": "dev@co.com", "password": "secure123"}'
 ```
@@ -28,7 +28,7 @@ curl -X POST https://zeroauth.dev/api/console/signup \
 Create additional keys via the console API:
 
 ```bash
-curl -X POST https://zeroauth.dev/api/console/keys \
+curl -X POST https://api.zeroauth.dev/api/console/keys \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -76,7 +76,7 @@ Default scopes for new keys: `zkp:verify`, `zkp:register`, `identity:read`, `non
 ## Listing Keys
 
 ```bash
-curl https://zeroauth.dev/api/console/keys \
+curl https://api.zeroauth.dev/api/console/keys \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN"
 ```
 
@@ -87,7 +87,7 @@ Returns all keys (active and revoked) with prefix, scopes, environment, and last
 Revocation is immediate and irreversible:
 
 ```bash
-curl -X DELETE https://zeroauth.dev/api/console/keys/KEY_UUID \
+curl -X DELETE https://api.zeroauth.dev/api/console/keys/KEY_UUID \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN"
 ```
 

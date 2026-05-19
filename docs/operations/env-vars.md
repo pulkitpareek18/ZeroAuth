@@ -107,9 +107,9 @@ Some examples by feature:
 
 | Feature | Smoke |
 |---|---|
-| SMTP env added | `curl -X POST https://zeroauth.dev/api/console/signup -d '{"email":"smoke+<ts>@yushuexcellence.in","password":"Smoke2026!Pass"}'` → check logs for `Email: sent` with a messageId |
-| Database creds changed | `curl https://zeroauth.dev/api/health` returns `{"status":"healthy"}` and `subsystems.postgres` is `connected` |
-| Blockchain wallet rotated | `curl https://zeroauth.dev/api/health` returns `{"subsystems":{"blockchain":{"status":"connected","chainId":84532}}}` |
+| SMTP env added | `curl -X POST https://api.zeroauth.dev/api/console/signup -d '{"email":"smoke+<ts>@yushuexcellence.in","password":"Smoke2026!Pass"}'` → check logs for `Email: sent` with a messageId |
+| Database creds changed | `curl https://api.zeroauth.dev/api/health` returns `{"status":"healthy"}` and `subsystems.postgres` is `connected` |
+| Blockchain wallet rotated | `curl https://api.zeroauth.dev/api/health` returns `{"subsystems":{"blockchain":{"status":"connected","chainId":84532}}}` |
 | JWT secret rotated | Existing console sessions break (expected). Re-login from `/dashboard/login` works. |
 
 Tail the logs while you smoke:

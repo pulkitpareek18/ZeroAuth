@@ -28,8 +28,33 @@ const SECOND_KEY_NAME = `playwright-secondary-${RANDOM}`;
 test.describe.configure({ mode: 'serial' });
 
 test.describe('developer console — happy path', () => {
-  test('signup, mint key, register device, see audit events', async ({ page }) => {
+  // F-2 v2 (issue #27) replaced the immediate-key-reveal signup with an
+  // email-verify gate. The Playwright happy path needs to either (a) read
+  // the verify token from Postgres, or (b) intercept the outbound email
+  // via a test-mode mail transport. Until that rework lands, the full
+  // happy path is parked — but the partial "check your inbox" coverage
+  // below exercises the new signup contract end-to-end on the form side.
+  test.skip('signup, mint key, register device, see audit events (needs DB/SMTP hook for verify-link)', async ({ page }) => {
     await runHappyPath(page);
+  });
+
+  test('F-2 v2 signup form lands on the "check your inbox" view', async ({ page }) => {
+    const stamp = Date.now();
+    const random = Math.random().toString(36).slice(2, 8);
+    const email = `playwright-f2v2+${stamp}-${random}@example.com`;
+
+    await page.goto('/dashboard/signup');
+    await expect(page.getByRole('heading', { name: /create your account/i })).toBeVisible();
+    await page.getByLabel(/work email/i).fill(email);
+    await page.getByLabel(/company name/i).fill('F-2 v2 Test');
+    await page.getByLabel(/^password$/i).fill(PASSWORD);
+    await page.getByRole('button', { name: /create account/i }).click();
+
+    // The page should pivot to "Check your inbox" without revealing any key.
+    await expect(page.getByRole('heading', { name: /check your inbox/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(email)).toBeVisible();
+    // Critically: nothing that looks like an API key should appear.
+    await expect(page.locator('text=/za_(live|test)_[a-f0-9]{12,}/')).toHaveCount(0);
   });
 });
 

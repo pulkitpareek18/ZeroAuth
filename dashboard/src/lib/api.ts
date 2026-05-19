@@ -135,18 +135,33 @@ export interface Tenant {
   status: 'active' | 'suspended' | 'deactivated';
 }
 
+/**
+ * F-2 v2 byte-identical signup response (issue #27).
+ *
+ * POST /api/console/signup always returns 202 with this shape regardless
+ * of whether the email is taken. The dashboard reads `status` to render
+ * the "check your inbox" state. The actual account + API key are minted
+ * only after the user clicks the verification link, at which point the
+ * GET /api/console/verify-signup endpoint sets a one-shot reveal cookie
+ * and redirects to /dashboard/signup-complete.
+ */
 export interface SignupResponse {
+  status: 'pending_verification';
   message: string;
+}
+
+/**
+ * Payload set by the backend at verify-signup time and read once by the
+ * SignupComplete page. Source: the `zeroauth_signup_reveal` cookie,
+ * base64url-encoded JSON. Cleared after the page reads it.
+ */
+export interface SignupRevealPayload {
   token: string;
-  tenant: Tenant;
-  apiKey: {
-    key: string;
-    id: string;
-    name: string;
-    prefix: string;
-    environment: Environment;
-    warning: string;
-  };
+  apiKey: string;
+  apiKeyId: string;
+  apiKeyName: string;
+  apiKeyPrefix: string;
+  apiKeyEnv: Environment;
 }
 
 export interface LoginResponse {

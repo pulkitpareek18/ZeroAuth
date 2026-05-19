@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
+import { useBrandMarkUrl } from '../../lib/theme';
 import { ApiError } from '../../lib/api';
 import { Button, Input, Label } from '../../components/ui';
 
@@ -8,10 +9,16 @@ export function Login() {
   const { status, login } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Set by GET /api/console/verify-signup when a verify link is clicked twice
+  // (the account was already created by the first click). Tells the user
+  // they're past signup and just need to sign in.
+  const alreadyVerified = searchParams.get('already_verified') === '1';
 
   if (status === 'authenticated') {
     const redirectTo = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/overview';
@@ -34,6 +41,11 @@ export function Login() {
 
   return (
     <AuthLayout title="Welcome back" subtitle="Sign in to your ZeroAuth developer console.">
+      {alreadyVerified ? (
+        <div className="mb-4 rounded-md border border-[var(--color-success)]/40 bg-[var(--color-success)]/10 px-3 py-2 text-xs text-[var(--color-success)]">
+          Your email is verified. Sign in to continue.
+        </div>
+      ) : null}
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <div>
           <Label htmlFor="email">Email</Label>
@@ -82,24 +94,31 @@ export function Login() {
 }
 
 export function AuthLayout({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  const markSrc = useBrandMarkUrl();
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-bg)] px-4">
       <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center justify-center gap-2">
-          <div className="grid size-9 place-items-center rounded-md bg-gradient-to-br from-[var(--color-brand)] to-[var(--color-brand-dark)] text-white">
-            <svg viewBox="0 0 24 24" width={20} height={20} fill="none">
-              <path d="M7.25 7.75H16.75L7.25 16.25H16.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+        <div className="mb-7 flex flex-col items-center gap-3">
+          <img src={markSrc} alt="" aria-hidden="true" className="size-12" />
+          <div
+            className="text-[22px] leading-none text-[var(--color-text)]"
+            style={{ fontFamily: 'var(--font-display)', fontWeight: 400, letterSpacing: '-0.01em' }}
+          >
+            ZeroAuth
           </div>
-          <div className="text-lg font-semibold tracking-tight">ZeroAuth</div>
         </div>
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-raised)] p-6 shadow-sm">
-          <h1 className="text-xl font-semibold text-[var(--color-text)]">{title}</h1>
-          {subtitle ? <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{subtitle}</p> : null}
+        <div className="border border-[var(--color-border)] bg-[var(--color-bg-raised)] p-7">
+          <h1
+            className="text-[1.5rem] leading-tight text-[var(--color-text)]"
+            style={{ fontFamily: 'var(--font-display)', fontWeight: 400, letterSpacing: '-0.02em' }}
+          >
+            {title}
+          </h1>
+          {subtitle ? <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{subtitle}</p> : null}
           <div className="mt-6">{children}</div>
         </div>
-        <p className="mt-4 text-center text-xs text-[var(--color-text-dim)]">
-          Zero biometric data stored. Ever.
+        <p className="mt-5 text-center text-[11px] uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
+          Zero biometric data stored · Ever
         </p>
       </div>
     </div>

@@ -1,5 +1,5 @@
-# ZeroAuth — Caddy reverse proxy config for zeroauth.dev
-# Caddy provisions a real Let's Encrypt cert automatically and renews it.
+# ZeroAuth — Caddy reverse proxy config.
+# Caddy provisions Let's Encrypt certs automatically for every vhost below.
 #
 # Usage on the production host:
 #   docker compose --profile prod up -d --build
@@ -7,32 +7,133 @@
 # This Caddyfile is consumed by the `caddy` service in docker-compose.yml,
 # which is on the same Compose network as `zeroauth-prod`, so we reach the
 # app via its service name.
+#
+# DNS prerequisites (operator action, before deploy):
+#   A     zeroauth.dev          → 104.207.143.14
+#   A     www.zeroauth.dev      → 104.207.143.14
+#   A     api.zeroauth.dev      → 104.207.143.14
+#   A     console.zeroauth.dev  → 104.207.143.14
+#   A     docs.zeroauth.dev     → 104.207.143.14
+# (or CNAMEs aliasing the apex). All five hostnames terminate at this one
+# Caddy instance which routes by Host header to the right path-prefix on
+# the upstream Express app. Same backend container; different vhost,
+# different rewrite.
 
-zeroauth.dev, www.zeroauth.dev {
-	# Force HTTPS (Caddy does this by default; explicit for clarity).
-	encode zstd gzip
-
-	# Forward to the ZeroAuth container on :3000.
-	reverse_proxy zeroauth-prod:3000 {
-		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-For {remote_host}
-		header_up X-Forwarded-Proto https
-	}
-
-	# Long-lived hashed assets (Vite/Docusaurus output).
-	@hashed path_regexp hashed \.(js|css|woff2?|svg|png|jpg|webp)$
-	header @hashed Cache-Control "public, max-age=31536000, immutable"
-
-	# Security headers (helmet sets most, but enforce belt-and-braces here).
+# ─── Shared snippets ────────────────────────────────────────────
+(security_headers) {
 	header {
 		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "interest-cohort=()"
 	}
+}
 
+(asset_caching) {
+	@hashed path_regexp hashed \.(js|css|woff2?|svg|png|jpg|webp)$
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+}
+
+(json_log) {
 	log {
 		output stdout
 		format json
 	}
+}
+
+# ─── Apex: marketing site + signup ──────────────────────────────
+zeroauth.dev, www.zeroauth.dev {
+	encode zstd gzip
+
+	# The apex serves /public/index.html and the marketing /demo.html.
+	# Anything under /v1, /api, /dashboard, /docs that hits the apex
+	# gets a 308 to the new canonical subdomain so legacy URLs don't
+	# silently break for bookmarks + CI scripts.
+	redir /v1/*     https://api.zeroauth.dev{uri}     permanent
+	redir /api/*    https://api.zeroauth.dev{uri}     permanent
+	redir /dashboard /dashboard/                       permanent
+	redir /dashboard/* https://console.zeroauth.dev{uri.path.substr(10}{uri.query} permanent
+	redir /docs     /docs/                             permanent
+	redir /docs/*   https://docs.zeroauth.dev{uri.path.substr(5}{uri.query} permanent
+
+	reverse_proxy zeroauth-prod:3000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host {host}
+	}
+
+	import asset_caching
+	import security_headers
+	import json_log
+}
+
+# ─── api.zeroauth.dev — REST surface ────────────────────────────
+api.zeroauth.dev {
+	encode zstd gzip
+
+	# Strip the public path to map onto the same Express app. The
+	# upstream still recognises /v1/* and /api/*; on api.zeroauth.dev
+	# we keep the URI as-is (no rewrite) — clients hit
+	# https://api.zeroauth.dev/v1/verifications which proxies to
+	# zeroauth-prod:3000/v1/verifications.
+	reverse_proxy zeroauth-prod:3000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host {host}
+	}
+
+	# Hard 404 on any request to a non-API path so api.zeroauth.dev
+	# doesn't accidentally serve dashboard / docs HTML if the
+	# upstream's catch-all routes change.
+	@nonapi not path /v1/* /api/* /.well-known/* /health
+	respond @nonapi "Not an API route" 404
+
+	import security_headers
+	import json_log
+}
+
+# ─── console.zeroauth.dev — developer console ───────────────────
+console.zeroauth.dev {
+	encode zstd gzip
+
+	# Strip /dashboard prefix expected by the Vite-built SPA. Express
+	# serves the dashboard at /dashboard/*; on console.zeroauth.dev we
+	# want users to land at "/", so rewrite incoming "/" → "/dashboard/".
+	rewrite / /dashboard/
+	rewrite /* /dashboard{uri}
+
+	# Cookies issued by /api/console/* are scoped to ".zeroauth.dev" so
+	# the console + API share session state across the subdomain boundary.
+	reverse_proxy zeroauth-prod:3000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host {host}
+	}
+
+	import asset_caching
+	import security_headers
+	import json_log
+}
+
+# ─── docs.zeroauth.dev — Docusaurus build ───────────────────────
+docs.zeroauth.dev {
+	encode zstd gzip
+
+	# Same rewrite story — strip /docs/* from the upstream path.
+	rewrite / /docs/
+	rewrite /* /docs{uri}
+
+	reverse_proxy zeroauth-prod:3000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host {host}
+	}
+
+	import asset_caching
+	import security_headers
+	import json_log
 }

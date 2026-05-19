@@ -1,27 +1,37 @@
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { ApiError } from '../../lib/api';
-import { Button, CopyButton, Input, Label, Modal } from '../../components/ui';
+import { Button, Input, Label } from '../../components/ui';
 import { AuthLayout } from './Login';
 
-interface FirstKeyState {
-  key: string;
-  warning: string;
-}
-
+/**
+ * F-2 v2 signup (issue #27).
+ *
+ * POST /api/console/signup is now an email-verify gate — it always returns
+ * 202 + { status: 'pending_verification', message } whether the email is
+ * fresh or already taken. The actual tenant + API key are minted only
+ * after the user clicks the verification link, which lands on
+ * /dashboard/signup-complete where the key is revealed once.
+ *
+ * This page therefore has two states:
+ *   1. The form (collects email + password + company)
+ *   2. The "check your inbox" confirmation (shown after a successful submit)
+ *
+ * We deliberately do NOT distinguish "email taken" from "email fresh" in
+ * the UI — that would re-create the enumeration vector the backend just
+ * closed.
+ */
 export function Signup() {
   const { status, signup } = useAuth();
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [firstKey, setFirstKey] = useState<FirstKeyState | null>(null);
-  const [confirmedReveal, setConfirmedReveal] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
 
-  if (status === 'authenticated' && !firstKey) {
+  if (status === 'authenticated' && !sentTo) {
     return <Navigate to="/overview" replace />;
   }
 
@@ -29,124 +39,129 @@ export function Signup() {
     e.preventDefault();
     setError(null);
     setBusy(true);
+    const trimmed = email.trim();
     try {
-      const res = await signup({
-        email: email.trim(),
+      await signup({
+        email: trimmed,
         password,
         companyName: companyName.trim() || undefined,
       });
-      setFirstKey({ key: res.apiKey, warning: res.warning });
+      setSentTo(trimmed);
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Sign-up failed.';
       setError(msg);
+    } finally {
       setBusy(false);
     }
   }
 
-  return (
-    <>
-      <AuthLayout title="Create your account" subtitle="Sign up to start issuing API keys, registering devices, and verifying identities.">
-        <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <div>
-            <Label htmlFor="email">Work email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="dev@yourcompany.com"
-            />
-          </div>
-          <div>
-            <Label htmlFor="company">Company name (optional)</Label>
-            <Input
-              id="company"
-              type="text"
-              autoComplete="organization"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="Acme Corp"
-            />
-          </div>
-          <div>
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={12}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <p className="mt-1.5 text-[11px] text-[var(--color-text-dim)]">
-              At least 12 characters, with a letter and a digit. No common passwords.
-            </p>
+  if (sentTo) {
+    return (
+      <AuthLayout
+        title="Check your inbox"
+        subtitle={`We sent a verification link to ${sentTo}. Click it to finish setting up your account — the link expires in 24 hours.`}
+      >
+        <div className="space-y-4">
+          <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg-surface)] px-4 py-3 text-sm text-[var(--color-text-secondary)]">
+            <p className="mb-2 text-[var(--color-text)]">What happens next</p>
+            <ol className="list-decimal space-y-1.5 pl-5 text-xs leading-relaxed">
+              <li>Open the email titled <em>"Verify your ZeroAuth account"</em>.</li>
+              <li>Click <em>"Verify and continue"</em> — it lands you on the dashboard.</li>
+              <li>Your first API key is revealed once on the next screen. Save it before navigating away.</li>
+            </ol>
           </div>
 
-          {error ? (
-            <div className="rounded-md border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 px-3 py-2 text-xs text-[var(--color-danger)]">
-              {error}
-            </div>
-          ) : null}
+          <p className="text-xs text-[var(--color-text-dim)]">
+            No email yet? Check your spam folder, then try again with the same address.
+            We never indicate whether an address is already registered — that's a deliberate
+            anti-enumeration choice.
+          </p>
 
-          <Button type="submit" loading={busy} className="w-full" size="lg">
-            {busy ? 'Creating account…' : 'Create account'}
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={() => {
+              setSentTo(null);
+              setPassword('');
+            }}
+          >
+            Use a different email
           </Button>
 
           <div className="text-center text-xs text-[var(--color-text-secondary)]">
-            Already have an account?{' '}
+            Already verified?{' '}
             <Link to="/login" className="font-medium text-[var(--color-brand)] hover:underline">
               Sign in
             </Link>
           </div>
-        </form>
+        </div>
       </AuthLayout>
+    );
+  }
 
-      <Modal
-        open={firstKey !== null}
-        onClose={() => { /* keep open until user confirms */ }}
-        title="Save your first API key"
-        description="This is the only time you'll see it. Treat it like a password."
-        footer={
-          <>
-            <Button
-              variant="primary"
-              disabled={!confirmedReveal}
-              onClick={() => {
-                setFirstKey(null);
-                navigate('/overview', { replace: true });
-              }}
-            >
-              I've saved it, take me to the console
-            </Button>
-          </>
-        }
-      >
-        {firstKey ? (
-          <div className="space-y-3">
-            <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg-surface)] px-3 py-2 font-mono text-xs break-all">
-              {firstKey.key}
-            </div>
-            <div className="flex justify-end">
-              <CopyButton value={firstKey.key} label="Copy key" />
-            </div>
-            <div className="rounded-md border border-[var(--color-warn)]/40 bg-[var(--color-warn)]/10 px-3 py-2 text-xs text-[var(--color-warn)]">
-              {firstKey.warning}
-            </div>
-            <label className="flex items-start gap-2 text-xs text-[var(--color-text-secondary)]">
-              <input
-                type="checkbox"
-                checked={confirmedReveal}
-                onChange={(e) => setConfirmedReveal(e.target.checked)}
-              />
-              <span>I have saved this key in a secure location. I understand it cannot be recovered.</span>
-            </label>
+  return (
+    <AuthLayout title="Create your account" subtitle="Sign up to start issuing API keys, registering devices, and verifying identities.">
+      <form onSubmit={onSubmit} className="space-y-4" noValidate>
+        <div>
+          <Label htmlFor="email">Work email</Label>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="dev@yourcompany.com"
+          />
+        </div>
+        <div>
+          <Label htmlFor="company">Company name (optional)</Label>
+          <Input
+            id="company"
+            type="text"
+            autoComplete="organization"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            placeholder="Acme Corp"
+          />
+        </div>
+        <div>
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={12}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <p className="mt-1.5 text-[11px] text-[var(--color-text-dim)]">
+            At least 12 characters, with a letter and a digit. No common passwords.
+          </p>
+        </div>
+
+        {error ? (
+          <div className="rounded-md border border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 px-3 py-2 text-xs text-[var(--color-danger)]">
+            {error}
           </div>
         ) : null}
-      </Modal>
-    </>
+
+        <Button type="submit" loading={busy} className="w-full" size="lg">
+          {busy ? 'Sending verification…' : 'Create account'}
+        </Button>
+
+        <p className="text-[11px] text-[var(--color-text-dim)] leading-relaxed">
+          We'll email you a one-click verification link. Your account isn't created until you confirm.
+        </p>
+
+        <div className="text-center text-xs text-[var(--color-text-secondary)]">
+          Already have an account?{' '}
+          <Link to="/login" className="font-medium text-[var(--color-brand)] hover:underline">
+            Sign in
+          </Link>
+        </div>
+      </form>
+    </AuthLayout>
   );
 }

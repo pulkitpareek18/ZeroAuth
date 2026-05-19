@@ -1,0 +1,113 @@
+name: Verifier audit-chain verify
+
+# Daily integrity check on the verifier's append-only SQLite audit log.
+# Reaches into the VPS over SSH (verifier is loopback-only on :3001 by
+# design) and calls /audit/verify-chain. If `ok:false`, opens an issue
+# with the `incident:critical` label and pings via the audit-chain
+# breakage runbook in governance: docs/shared/incident-response.md.
+#
+# Cadence: daily at 02:30 UTC (08:00 IST), and on demand via workflow_dispatch.
+# A failure here means the hash chain in `verifier_events` is broken — almost
+# always a sign of tampering, never of normal operation. See A-V01 in
+# governance: docs/threat-model/verifier.md.
+
+on:
+  schedule:
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+env:
+  DEPLOY_HOST: 104.207.143.14
+  DEPLOY_USER: zeroauth-deploy
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  verify-chain:
+    name: Probe /audit/verify-chain
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add deploy host to known_hosts
+        run: ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Probe verifier audit chain
+        id: probe
+        run: |
+          # Verifier is on the docker compose network, loopback-bound. We
+          # exec into the running container's curl rather than punching a
+          # port through to the host — keeps the loopback invariant intact.
+          response=$(ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "docker exec zeroauth-verifier wget -qO- http://127.0.0.1:3001/audit/verify-chain" || true)
+
+          echo "raw_response=$response"
+          # Normalize newlines for the multi-line GHA output
+          {
+            echo "response<<EOF"
+            echo "$response"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          # Look for `"ok":true` in the JSON body. If the verifier is down
+          # or returns a non-2xx, $response will be empty and `ok:true`
+          # won't match — caught below.
+          if echo "$response" | grep -q '"ok":true'; then
+            echo "status=green" >> "$GITHUB_OUTPUT"
+            echo "Chain intact."
+          else
+            echo "status=red" >> "$GITHUB_OUTPUT"
+            echo "Chain probe failed or returned ok:false. Response: $response"
+            exit 1
+          fi
+
+      - name: Open critical issue on failure
+        if: failure()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const date = new Date().toISOString().slice(0, 10);
+            const response = `${{ steps.probe.outputs.response }}`.slice(0, 4000);
+            const title = `Verifier audit-chain probe failed — ${date}`;
+            const body = `The daily \`/audit/verify-chain\` probe came back non-green.
+
+            **Run:** ${context.payload.repository.html_url}/actions/runs/${context.runId}
+
+            **Probe response:**
+            \`\`\`json
+            ${response || '(empty — verifier likely unreachable)'}
+            \`\`\`
+
+            **What to do:**
+            1. Verify the chain integrity manually: \`ssh zeroauth-deploy@${process.env.DEPLOY_HOST} 'docker exec zeroauth-verifier wget -qO- http://127.0.0.1:3001/audit/verify-chain'\`
+            2. If \`ok:false\`, treat as a Security incident (A-V01 in [governance: docs/threat-model/verifier.md](https://github.com/zeroauth-dev/ZeroAuth-Governance/blob/main/docs/threat-model/verifier.md)). Run the [incident-response runbook](https://github.com/zeroauth-dev/ZeroAuth-Governance/blob/main/docs/shared/incident-response.md).
+            3. If the verifier is unreachable, restart with \`docker compose --profile prod up -d --force-recreate zeroauth-verifier\` and re-run this workflow.
+
+            🤖 Filed automatically by \`.github/workflows/verifier-chain-verify.yml\`.`;
+
+            const { owner, repo } = context.repo;
+            // Look for an existing open issue from a prior failure today so
+            // we don't spam if the verifier is down for hours.
+            const existing = await github.paginate(
+              github.rest.issues.listForRepo,
+              { owner, repo, state: 'open', labels: 'incident:critical', per_page: 50 }
+            );
+            const today = existing.find(i => i.title && i.title.includes(date));
+            if (today) {
+              core.info(`Existing issue ${today.number} already covers today's probe failure.`);
+              return;
+            }
+            const created = await github.rest.issues.create({
+              owner,
+              repo,
+              title,
+              body,
+              labels: ['incident:critical', 'verifier', 'audit-log'],
+            });
+            core.info(`Opened issue #${created.data.number}`);

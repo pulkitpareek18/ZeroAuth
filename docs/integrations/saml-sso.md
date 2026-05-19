@@ -20,7 +20,7 @@ All SAML endpoints require an API key with the appropriate scope.
 **Required scope:** `saml:login`
 
 ```bash
-curl https://zeroauth.dev/v1/auth/saml/login \
+curl https://api.zeroauth.dev/v1/auth/saml/login \
   -H "Authorization: Bearer za_live_YOUR_KEY"
 ```
 
@@ -41,7 +41,7 @@ Redirect the user's browser to `redirectUrl` to initiate the SSO flow.
 **Required scope:** `saml:callback`
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/auth/saml/callback \
+curl -X POST https://api.zeroauth.dev/v1/auth/saml/callback \
   -H "Authorization: Bearer za_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -73,7 +73,7 @@ Success response:
 **Required scope:** `saml:login`
 
 ```bash
-curl https://zeroauth.dev/v1/auth/saml/metadata \
+curl https://api.zeroauth.dev/v1/auth/saml/metadata \
   -H "Authorization: Bearer za_live_YOUR_KEY"
 ```
 
@@ -91,7 +91,7 @@ Your API key needs these scopes for SAML integration:
 Create a key with SAML scopes:
 
 ```bash
-curl -X POST https://zeroauth.dev/api/console/keys \
+curl -X POST https://api.zeroauth.dev/api/console/keys \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

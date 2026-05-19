@@ -19,9 +19,9 @@
 
   <p>
     <a href="https://zeroauth.dev"><strong>zeroauth.dev</strong></a> ·
-    <a href="https://zeroauth.dev/docs/">Documentation</a> ·
-    <a href="https://zeroauth.dev/docs/getting-started/quickstart">Quickstart</a> ·
-    <a href="https://zeroauth.dev/docs/reference/api-reference">API Reference</a>
+    <a href="https://docs.zeroauth.dev/">Documentation</a> ·
+    <a href="https://docs.zeroauth.dev/getting-started/quickstart">Quickstart</a> ·
+    <a href="https://docs.zeroauth.dev/reference/api-reference">API Reference</a>
   </p>
 
   <p>
@@ -113,17 +113,17 @@ A deeper walkthrough lives in [docs/concepts/architecture.md](docs/concepts/arch
 
 ```bash
 # 1. Sign up
-curl -X POST https://zeroauth.dev/api/console/signup \
+curl -X POST https://api.zeroauth.dev/api/console/signup \
   -H "Content-Type: application/json" \
   -d '{"email":"you@example.com","password":"a-strong-password","companyName":"Acme"}'
 # → returns { token, apiKey: { key: "za_live_..." } }
 
 # 2. Make your first call
-curl https://zeroauth.dev/v1/auth/zkp/nonce \
+curl https://api.zeroauth.dev/v1/auth/zkp/nonce \
   -H "Authorization: Bearer za_live_YOUR_KEY"
 ```
 
-Full API reference at [zeroauth.dev/docs/reference/api-reference](https://zeroauth.dev/docs/reference/api-reference).
+Full API reference at [docs.zeroauth.dev/reference/api-reference](https://docs.zeroauth.dev/reference/api-reference).
 
 ### Run it yourself (Docker, ~2 minutes)
 

@@ -1,0 +1,111 @@
+name: Security review gate
+
+# Path-filter gate for the security-sensitive surfaces. Runs on every PR that
+# touches auth, crypto, audit, key handling, or tenant-boundary code and
+# leaves an annotated comment listing the touched paths + the named subagent
+# the human reviewer must invoke locally.
+#
+# Why this isn't an in-CI security scan: the security-reviewer subagent
+# (`.claude/agents/security-reviewer.md`) runs on Opus with full repo context
+# and produces a structured findings report. Running that inside GHA would
+# require Claude API access from CI, which isn't wired and isn't billed
+# centrally. So this workflow is a *forcing function* — it makes skipping
+# the manual subagent run impossible to miss in the PR conversation.
+#
+# Closes the Week 1 discipline gap noted in qa-log/W01-engineering-annex.md.
+
+on:
+  pull_request:
+    paths:
+      - 'src/services/zkp.ts'
+      - 'src/services/identity.ts'
+      - 'src/services/api-keys.ts'
+      - 'src/services/jwt.ts'
+      - 'src/services/platform.ts'
+      - 'src/middleware/auth.ts'
+      - 'src/middleware/tenant-auth.ts'
+      - 'src/routes/auth.ts'
+      - 'src/routes/console.ts'
+      - 'src/routes/v1/**'
+      - 'src/routes/zkp.ts'
+      - 'src/routes/saml.ts'
+      - 'src/routes/oidc.ts'
+      - 'circuits/**'
+      - 'contracts/**'
+      - 'verifier/src/audit-log.ts'
+      - 'verifier/src/server.ts'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  flag:
+    name: Flag for security-reviewer subagent
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Collect touched security paths
+        id: paths
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          # Recompute the same path set the workflow `paths:` clause matches
+          # so the comment lists the *exact* files that triggered this run.
+          touched=$(git diff --name-only "$base" "$head" | grep -E '^(src/services/(zkp|identity|api-keys|jwt|platform)\.ts|src/middleware/(auth|tenant-auth)\.ts|src/routes/(auth|console|zkp|saml|oidc)\.ts|src/routes/v1/.+|circuits/.+|contracts/.+|verifier/src/(audit-log|server)\.ts)$' || true)
+          # Newline-escape for GHA multi-line output
+          {
+            echo "touched<<EOF"
+            echo "$touched"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Annotate PR with subagent invocation reminder
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const touched = `${{ steps.paths.outputs.touched }}`.trim();
+            if (!touched) {
+              core.info('No security-sensitive paths touched; nothing to flag.');
+              return;
+            }
+            const list = touched.split('\n').map(p => `- \`${p}\``).join('\n');
+            const marker = '<!-- security-review-gate -->';
+            const body = `${marker}
+
+            ## 🔒 Security review required
+
+            This PR touches security-sensitive surfaces. Per [CLAUDE.md §4](../blob/main/CLAUDE.md#standing-instructions), the \`security-reviewer\` subagent ([\`.claude/agents/security-reviewer.md\`](../blob/main/.claude/agents/security-reviewer.md)) must be invoked locally before merge.
+
+            **Touched paths:**
+            ${list}
+
+            **How to run the review:**
+            \`\`\`
+            # In Claude Code, after pulling this branch:
+            @security-reviewer review the changes on this branch
+            \`\`\`
+
+            Reply on this PR with the structured findings report (or a "no findings" confirmation) before requesting merge. Block merge if any Critical / High finding lands without a tracked carve-out.
+
+            _This comment is posted automatically by \`.github/workflows/security-review.yml\` and updated on every push to keep the touched-paths list current._`;
+
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request.number;
+            const existing = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number: prNumber }
+            );
+            const prior = existing.find(c => c.body && c.body.startsWith(marker));
+            if (prior) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: prior.id, body });
+              core.info(`Updated existing security-review comment ${prior.id}`);
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
+              core.info('Posted new security-review comment');
+            }

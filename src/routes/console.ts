@@ -1,17 +1,11 @@
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { randomUUID, scrypt as _scrypt } from 'crypto';
-import { promisify } from 'util';
+import { randomUUID } from 'crypto';
 import rateLimit from 'express-rate-limit';
-
-const scrypt = promisify(_scrypt) as (
-  password: string,
-  salt: string,
-  keylen: number,
-) => Promise<Buffer>;
 import { config } from '../config';
 import { logger } from '../services/logger';
-import { createTenant, authenticateTenant, getTenantById, getTenantByEmail } from '../services/tenants';
+import { createTenant, createTenantWithHash, hashPassword, authenticateTenant, getTenantById, getTenantByEmail } from '../services/tenants';
+import { createPendingSignup, consumePendingSignup } from '../services/pending-signups';
 import { createApiKey, listApiKeys, revokeApiKey, countActiveKeys } from '../services/api-keys';
 import { getUsageSummary, getRecentCalls, getCurrentMonthUsage } from '../services/usage';
 import {
@@ -38,7 +32,7 @@ import {
   VerificationResult,
 } from '../types';
 import { sendMail } from '../services/email';
-import { welcomeEmail, signupAttemptedNoticeEmail } from '../services/email-templates';
+import { welcomeEmail, signupAttemptedNoticeEmail, verifySignupEmail } from '../services/email-templates';
 
 const router = Router();
 
@@ -167,81 +161,141 @@ function requireConsoleAuth(req: Request, res: Response, next: any): void {
  * Body: { email, password, companyName? }
  */
 router.post('/signup', authLimiter, async (req: Request, res: Response) => {
+  // F-2 v2 byte-identical signup (issue #27):
+  //
+  // Goal: an attacker probing addresses against /api/console/signup must
+  // observe identical responses (status, body, timing) whether the email is
+  // taken or fresh. The v1 partial-fix kept the 201/409 split to preserve
+  // the one-round-trip dashboard flow; v2 splits creation into two steps
+  // and returns a uniform 202 from this endpoint.
+  //
+  // Branches (both end with the same 202 response):
+  //   (a) Fresh email: hash the password, park the payload in
+  //       pending_signups under a 24h-TTL token, send a verification
+  //       email. Tenant is NOT created until the user clicks the link.
+  //   (b) Email taken: send the legitimate holder a "someone tried to
+  //       sign up" notice (security signal). Pin the same CPU cost as
+  //       (a) by burning a scrypt hash on the request, so the timing
+  //       side-channel is also closed.
+  //
+  // Anything that would 4xx (missing field, weak password) is still
+  // returned synchronously — those checks don't leak account existence.
+  //
+  // See governance: docs/threat-model/api.md A-05 (Account Enumeration).
+  const { email, password, companyName } = req.body;
+
+  if (!email || !password) {
+    res.status(400).json({ error: 'invalid_request', message: 'Email and password are required.' });
+    return;
+  }
+
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    res.status(400).json({ error: 'invalid_password', message: passwordError });
+    return;
+  }
+
+  // Uniform 202 response body — referenced from both branches below.
+  // The wording is deliberately ambiguous about whether the email was
+  // already registered. Clients show a "check your inbox" view.
+  const UNIFORM_BODY = {
+    status: 'pending_verification' as const,
+    message: 'If this email isn\'t already registered, we\'ve sent a verification link. Check your inbox.',
+  };
+
   try {
-    const { email, password, companyName } = req.body;
-
-    if (!email || !password) {
-      res.status(400).json({ error: 'invalid_request', message: 'Email and password are required.' });
-      return;
-    }
-
-    const passwordError = validatePassword(password);
-    if (passwordError) {
-      res.status(400).json({ error: 'invalid_password', message: passwordError });
-      return;
-    }
-
-    // F-2 (issue #27): email-enumeration mitigation — partial.
-    //
-    // The full byte-identical fix (return 202 always + verification email)
-    // requires a tenant-creation rework that breaks the existing dashboard
-    // signup-then-reveal-key flow + the Playwright happy path. That work
-    // is tracked in issue #27 as the v2 of this mitigation.
-    //
-    // For now: keep the 201/409 split (so dashboard signup still works in
-    // one round-trip) but plug the worst-leak surfaces:
-    //   1. Timing equalization — when the email exists, do the scrypt
-    //      hashing the createTenant() path would have done. Hashing
-    //      dominates the response time, so without this the 409 path
-    //      is observably ~50ms faster than the 201 path. With this,
-    //      both paths take the same wall-clock time.
-    //   2. Security-signal email — send a "someone tried to sign up
-    //      with your email" notice to the legitimate account holder,
-    //      so the email-was-taken response isn't free intel for an
-    //      attacker probing addresses.
-    //
-    // See ADR-0005 (email service), governance/docs/threat-model/api.md A-05.
     const existing = await getTenantByEmail(email);
-    if (existing) {
-      // Burn the same CPU we'd burn for createTenant() so the timing
-      // oracle is closed. scrypt is the dominant cost; do it explicitly.
-      try {
-        await scrypt(password, 'enumeration-mitigation-salt', 64);
-      } catch { /* swallow */ }
+    const sourceIp = (req.ip || req.headers['x-forwarded-for'] || '').toString().slice(0, 64) || null;
 
-      // Notify the legitimate operator out-of-band. Fire-and-forget;
-      // never block the response.
-      const sourceIp = (req.ip || req.headers['x-forwarded-for'] || '').toString().slice(0, 64) || null;
+    if (existing) {
+      // Branch (b): email taken. Burn an equivalent scrypt cost (the
+      // fresh-email branch will also hashPassword + write a row), then
+      // signal-email the legitimate holder. Fire-and-forget so the
+      // response timing doesn't leak success/failure of the SMTP call.
+      try {
+        await hashPassword(password);
+      } catch { /* swallow — timing only */ }
+
       void (async () => {
         const tmpl = signupAttemptedNoticeEmail({ email: existing.email, attemptIp: sourceIp });
         await sendMail({ to: existing.email, ...tmpl });
       })();
 
-      res.status(409).json({ error: 'email_taken', message: 'An account with this email already exists.' });
+      res.status(202).json(UNIFORM_BODY);
       return;
     }
 
-    const tenant = await createTenant(email, password, companyName);
+    // Branch (a): fresh email. Hash + park + email.
+    const passwordHash = await hashPassword(password);
+    const { token, expiresAt } = await createPendingSignup({
+      email,
+      passwordHash,
+      companyName: companyName || null,
+    });
 
-    // Auto-create a default live API key
+    const verifyUrl = `${config.apiBaseUrl.replace(/\/$/, '')}/api/console/verify-signup?token=${encodeURIComponent(token)}`;
+    void (async () => {
+      const tmpl = verifySignupEmail({ email, verifyUrl, expiresAt });
+      await sendMail({ to: email, ...tmpl });
+    })();
+
+    logger.info('Console: Pending signup parked', { sourceIp });
+    res.status(202).json(UNIFORM_BODY);
+  } catch (err) {
+    logger.error('Console: Signup error', { error: (err as Error).message });
+    // Return the same 202 body — never confess error state to the
+    // client because that would create a "this email is registered"
+    // side channel.
+    res.status(202).json(UNIFORM_BODY);
+  }
+});
+
+/**
+ * GET /api/console/verify-signup?token=...
+ *
+ * Second leg of the F-2 v2 flow. Consumes the verification token,
+ * creates the real tenant + a default live API key, issues a console
+ * JWT, and redirects to the dashboard. The dashboard receives the
+ * JWT via a one-time cookie and reveals the API key on landing.
+ */
+router.get('/verify-signup', async (req: Request, res: Response) => {
+  const token = String(req.query.token || '');
+  if (!token) {
+    res.status(400).send(renderVerifyResultHtml({ ok: false, message: 'Missing or invalid verification token.' }));
+    return;
+  }
+
+  try {
+    const payload = await consumePendingSignup(token);
+    if (!payload) {
+      res.status(400).send(renderVerifyResultHtml({ ok: false, message: 'This link is invalid or has already been used. Try signing up again.' }));
+      return;
+    }
+
+    // Double-check the email isn't taken by a race with another verify or
+    // a direct DB seed. Idempotent fallback: if the email is now claimed,
+    // route the user to login rather than re-creating.
+    const conflict = await getTenantByEmail(payload.email);
+    if (conflict) {
+      res.redirect(303, '/dashboard/login?already_verified=1');
+      return;
+    }
+
+    const tenant = await createTenantWithHash(payload.email, payload.passwordHash, payload.companyName);
     const defaultKey = await createApiKey(tenant.id, 'Default Live Key', 'live');
+    const jwtToken = issueConsoleToken(tenant.id, tenant.email);
 
-    // Issue console session token
-    const token = issueConsoleToken(tenant.id, tenant.email);
-
-    logger.info('Console: Tenant signup', { tenantId: tenant.id, email: tenant.email });
+    logger.info('Console: Tenant verified + created', { tenantId: tenant.id });
     void recordAuditEvent(tenant.id, {
       actorType: 'console',
       action: 'tenant.created',
       entityType: 'tenant',
       entityId: tenant.id,
       status: 'success',
-      summary: `Created tenant account for ${tenant.email}`,
-      metadata: { companyName: tenant.company_name, plan: tenant.plan },
+      summary: `Verified + created tenant account for ${tenant.email}`,
+      metadata: { companyName: tenant.company_name, plan: tenant.plan, viaEmailVerification: true },
     }).catch(() => undefined);
 
-    // Send welcome email out-of-band — never block the signup response.
-    // We deliberately do NOT email the API key (per security-policy §10).
     void (async () => {
       const tmpl = welcomeEmail({
         email: tenant.email,
@@ -251,40 +305,65 @@ router.post('/signup', authLimiter, async (req: Request, res: Response) => {
       await sendMail({ to: tenant.email, ...tmpl });
     })();
 
-    res.status(201).json({
-      message: 'Account created successfully.',
-      token,
-      tenant: {
-        id: tenant.id,
-        email: tenant.email,
-        companyName: tenant.company_name,
-        plan: tenant.plan,
-      },
-      apiKey: {
-        key: defaultKey.key,
-        id: defaultKey.id,
-        name: defaultKey.name,
-        prefix: defaultKey.key_prefix,
-        environment: defaultKey.environment,
-        warning: '⚠ Copy this API key now — it will never be shown again.',
-      },
-      quickstart: {
-        verify: `curl -X POST ${config.apiBaseUrl}/v1/auth/zkp/verify \\
-  -H "Authorization: Bearer ${defaultKey.key}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"proof": {...}, "publicSignals": [...], "nonce": "...", "timestamp": "..."}'`,
-        nonce: `curl ${config.apiBaseUrl}/v1/auth/zkp/nonce \\
-  -H "Authorization: Bearer ${defaultKey.key}"`,
-      },
+    // Hand the dashboard a one-shot reveal payload via signed cookie.
+    // The dashboard signup-complete page reads it once and clears it.
+    const revealPayload = Buffer.from(JSON.stringify({
+      token: jwtToken,
+      apiKey: defaultKey.key,
+      apiKeyId: defaultKey.id,
+      apiKeyName: defaultKey.name,
+      apiKeyPrefix: defaultKey.key_prefix,
+      apiKeyEnv: defaultKey.environment,
+    }), 'utf8').toString('base64url');
+
+    // Cross-subdomain cookie. After the api./console.zeroauth.dev split
+    // the verify-signup endpoint lives on api.zeroauth.dev but the
+    // dashboard reads the reveal cookie on console.zeroauth.dev — they
+    // share state only if the cookie is scoped to the eTLD+1.
+    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+    const apexHost = (() => {
+      try { return new URL(config.consoleBaseUrl).hostname; } catch { return null; }
+    })();
+    const cookieDomain = apexHost && apexHost.endsWith('zeroauth.dev') ? '.zeroauth.dev' : undefined;
+    res.cookie('zeroauth_signup_reveal', revealPayload, {
+      httpOnly: false, // dashboard JS must read it
+      secure: isHttps,
+      sameSite: 'lax',
+      maxAge: 5 * 60 * 1000, // 5 minutes — single-use; dashboard clears on read
+      path: '/',
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
     });
+
+    // After verification we land the user on the console. In dev that's
+    // /dashboard/signup-complete on the same host; in prod it's
+    // console.zeroauth.dev/signup-complete.
+    res.redirect(303, `${config.consoleBaseUrl.replace(/\/$/, '')}/signup-complete`);
   } catch (err) {
-    logger.error('Console: Signup error', { error: (err as Error).message });
-    res.status(500).json({
-      error: 'signup_failed',
-      message: 'Could not create the account. Please try again or contact support.',
-    });
+    logger.error('Console: verify-signup error', { error: (err as Error).message });
+    res.status(500).send(renderVerifyResultHtml({ ok: false, message: 'Something went wrong completing your signup. Please try the verification link again, or sign up afresh.' }));
   }
 });
+
+function renderVerifyResultHtml(input: { ok: boolean; message: string }): string {
+  const safeMsg = input.message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const title = input.ok ? 'Account ready' : 'Verification failed';
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<title>${title} — ZeroAuth</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fafafa; color: #0a0a0a; margin: 0; padding: 64px 24px; display: flex; min-height: 100vh; box-sizing: border-box; }
+  main { max-width: 480px; margin: auto; }
+  h1 { font-family: Georgia, 'Times New Roman', serif; font-weight: 300; font-size: 2rem; letter-spacing: -0.02em; margin-bottom: 16px; }
+  p { font-size: 15px; line-height: 1.6; color: #525252; margin-bottom: 24px; }
+  a { display: inline-block; padding: 12px 24px; background: #0a0a0a; color: #fff; text-decoration: none; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 500; }
+</style>
+</head><body><main>
+  <h1>${title}</h1>
+  <p>${safeMsg}</p>
+  <a href="/dashboard/signup">Try again</a>
+</main></body></html>`;
+}
 
 /**
  * POST /api/console/login

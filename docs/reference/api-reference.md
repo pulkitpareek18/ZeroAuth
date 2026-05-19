@@ -49,7 +49,7 @@ Register a new biometric identity. The biometric template is processed on the se
 **Request:**
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/auth/zkp/register \
+curl -X POST https://api.zeroauth.dev/v1/auth/zkp/register \
   -H "Authorization: Bearer za_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{"biometricTemplate": "BASE64_ENCODED_DATA"}'
@@ -84,7 +84,7 @@ Verify a Groth16 zero-knowledge proof and issue session tokens.
 **Request:**
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/auth/zkp/verify \
+curl -X POST https://api.zeroauth.dev/v1/auth/zkp/verify \
   -H "Authorization: Bearer za_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -135,7 +135,7 @@ Generate a fresh nonce for client-side proof generation.
 **Required scope:** `nonce:create`
 
 ```bash
-curl https://zeroauth.dev/v1/auth/zkp/nonce \
+curl https://api.zeroauth.dev/v1/auth/zkp/nonce \
   -H "Authorization: Bearer za_live_YOUR_KEY"
 ```
 
@@ -158,7 +158,7 @@ Returns circuit metadata for client-side proof generation setup.
 **Required scope:** `zkp:verify`
 
 ```bash
-curl https://zeroauth.dev/v1/auth/zkp/circuit-info \
+curl https://api.zeroauth.dev/v1/auth/zkp/circuit-info \
   -H "Authorization: Bearer za_live_YOUR_KEY"
 ```
 
@@ -188,7 +188,7 @@ Initiate SAML SSO flow.
 **Required scope:** `saml:login`
 
 ```bash
-curl https://zeroauth.dev/v1/auth/saml/login \
+curl https://api.zeroauth.dev/v1/auth/saml/login \
   -H "Authorization: Bearer za_live_YOUR_KEY"
 ```
 
@@ -215,7 +215,7 @@ Initiate OIDC authorization code flow with PKCE.
 **Required scope:** `oidc:authorize`
 
 ```bash
-curl https://zeroauth.dev/v1/auth/oidc/authorize \
+curl https://api.zeroauth.dev/v1/auth/oidc/authorize \
   -H "Authorization: Bearer za_live_YOUR_KEY"
 ```
 
@@ -238,7 +238,7 @@ Get the authenticated user's profile from a session token.
 **Additional header:** `X-Session-Token: <access_token from verify response>`
 
 ```bash
-curl https://zeroauth.dev/v1/identity/me \
+curl https://api.zeroauth.dev/v1/identity/me \
   -H "Authorization: Bearer za_live_YOUR_KEY" \
   -H "X-Session-Token: eyJhbGci..."
 ```

@@ -1,23 +1,107 @@
 @import "tailwindcss";
 
-/* ZeroAuth dashboard design tokens (Tailwind v4 CSS-first config). */
+/*
+ * ZeroAuth developer-console design tokens.
+ *
+ * Two themes that match the marketing site's language: near-black + white
+ * monochrome with a single status-green accent. Brand was previously a
+ * Google-blue gradient (#4285F4 → #0B57D0); that's now retired in favour
+ * of the ink primary so the dashboard and the landing tell the same story.
+ *
+ * Selector strategy:
+ *   - Default: dark theme, applied to :root. Matches the legacy console
+ *     surface so nothing breaks if the html element has no data-theme set.
+ *   - prefers-color-scheme: light → token swap to light surfaces.
+ *   - Manual override: [data-theme="light"] or [data-theme="dark"] on
+ *     <html> wins over the media query. Set by the in-app toggle and
+ *     persisted to localStorage in main.tsx.
+ *
+ * Fonts: Fraunces for display moments (page titles, big numbers), Inter
+ * Tight for body / UI chrome, JetBrains Mono for code + keys + IDs. Same
+ * palette of three the landing uses.
+ */
 @theme {
-  --color-bg: #0a0b10;
-  --color-bg-raised: #11121a;
-  --color-bg-surface: #161722;
-  --color-border: #1f2133;
-  --color-border-subtle: #181928;
-  --color-text: #e8e9ed;
-  --color-text-secondary: #8b8d9e;
-  --color-text-dim: #555770;
-  --color-brand: #4285F4;
-  --color-brand-dark: #0B57D0;
-  --color-success: #34d399;
+  /* ─── Dark (default) ─── */
+  --color-bg: #0a0a0a;
+  --color-bg-raised: #121212;
+  --color-bg-surface: #1a1a1a;
+  --color-border: #262626;
+  --color-border-subtle: #1f1f1f;
+  --color-text: #fafafa;
+  --color-text-secondary: #a3a3a3;
+  --color-text-dim: #6e6e6e;
+  --color-brand: #fafafa;
+  --color-brand-dark: #d4d4d4;
+  --color-on-brand: #0a0a0a;
+  --color-success: #4ade80;
   --color-warn: #fbbf24;
   --color-danger: #f87171;
 
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans: "Inter Tight", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-display: "Fraunces", "Times New Roman", serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Consolas", monospace;
+}
+
+/*
+ * Light theme override.
+ *
+ * Tailwind v4's @theme is build-time only; runtime theme swaps go through
+ * plain CSS custom property reassignment under selectors below. The custom
+ * properties Tailwind reads at build time stay the same; only the values
+ * change.
+ */
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --color-bg: #ffffff;
+    --color-bg-raised: #fafafa;
+    --color-bg-surface: #f4f4f4;
+    --color-border: #e5e5e5;
+    --color-border-subtle: #ededed;
+    --color-text: #0a0a0a;
+    --color-text-secondary: #525252;
+    --color-text-dim: #8e8e8e;
+    --color-brand: #0a0a0a;
+    --color-brand-dark: #1f1f1f;
+    --color-on-brand: #ffffff;
+    --color-success: #1a7a4a;
+    --color-warn: #b45309;
+    --color-danger: #b91c1c;
+  }
+}
+
+:root[data-theme="light"] {
+  --color-bg: #ffffff;
+  --color-bg-raised: #fafafa;
+  --color-bg-surface: #f4f4f4;
+  --color-border: #e5e5e5;
+  --color-border-subtle: #ededed;
+  --color-text: #0a0a0a;
+  --color-text-secondary: #525252;
+  --color-text-dim: #8e8e8e;
+  --color-brand: #0a0a0a;
+  --color-brand-dark: #1f1f1f;
+  --color-on-brand: #ffffff;
+  --color-success: #1a7a4a;
+  --color-warn: #b45309;
+  --color-danger: #b91c1c;
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #0a0a0a;
+  --color-bg-raised: #121212;
+  --color-bg-surface: #1a1a1a;
+  --color-border: #262626;
+  --color-border-subtle: #1f1f1f;
+  --color-text: #fafafa;
+  --color-text-secondary: #a3a3a3;
+  --color-text-dim: #6e6e6e;
+  --color-brand: #fafafa;
+  --color-brand-dark: #d4d4d4;
+  --color-on-brand: #0a0a0a;
+  --color-success: #4ade80;
+  --color-warn: #fbbf24;
+  --color-danger: #f87171;
 }
 
 html,
@@ -31,7 +115,9 @@ body,
 
 body {
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+  text-rendering: optimizeLegibility;
 }
 
 * {
@@ -47,14 +133,32 @@ button {
   font-family: inherit;
 }
 
-/* Scrollbar — subtle, brand-colored on hover. */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+/* Smooth theme transitions on background/color only — never on transform
+   or layout properties. Disabled during initial paint to avoid the flash. */
+html.theme-ready body,
+html.theme-ready body * {
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+/* Display headings — use Fraunces. Apply explicitly via the `.display`
+   utility so we don't accidentally serif-ify every h1 / h2 in the tree. */
+.display {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-variation-settings: "opsz" 144;
+  letter-spacing: -0.025em;
 }
+.display em { font-style: italic; font-weight: 400; }
+.display-2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-variation-settings: "opsz" 60;
+  letter-spacing: -0.018em;
+}
+
+/* Scrollbar — subtle, theme-aware. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: 8px;

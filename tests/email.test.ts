@@ -206,9 +206,9 @@ describe('services/email-templates', () => {
 
     it('links to the dashboard, the Quickstart, and the whitepaper', () => {
       const t = welcomeEmail(input);
-      expect(t.html).toContain('https://zeroauth.dev/dashboard/api-keys');
-      expect(t.html).toContain('https://zeroauth.dev/docs/getting-started/quickstart/');
-      expect(t.html).toContain('https://zeroauth.dev/docs/whitepaper.pdf');
+      expect(t.html).toContain('https://console.zeroauth.dev/api-keys');
+      expect(t.html).toContain('https://docs.zeroauth.dev/getting-started/quickstart/');
+      expect(t.html).toContain('https://docs.zeroauth.dev/whitepaper.pdf');
     });
   });
 
@@ -235,7 +235,7 @@ describe('services/email-templates', () => {
 
     it('points the legitimate user to the dashboard login + password-reset flow', () => {
       const t = signupAttemptedNoticeEmail(input);
-      expect(t.html).toContain('https://zeroauth.dev/dashboard/login');
+      expect(t.html).toContain('https://console.zeroauth.dev/login');
     });
 
     it('escapes the source IP value (defense-in-depth — IPs are technically attacker-controlled)', () => {

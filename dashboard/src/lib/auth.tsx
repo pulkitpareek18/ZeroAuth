@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { api, getToken, setToken, ApiError, type Tenant, type Account } from './api';
+import { api, getToken, setToken, ApiError, type Account } from './api';
 
 interface AuthState {
   status: 'loading' | 'authenticated' | 'unauthenticated';
@@ -7,9 +7,19 @@ interface AuthState {
   error: string | null;
 }
 
+/**
+ * Signup result surfaced to the UI. Under F-2 v2 (issue #27) the API never
+ * returns a token or API key on signup — those land on /dashboard/signup-complete
+ * after the user clicks the verification link.
+ */
+export interface SignupResult {
+  status: 'pending_verification';
+  message: string;
+}
+
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>;
-  signup: (input: { email: string; password: string; companyName?: string }) => Promise<{ apiKey: string; warning: string; tenant: Tenant }>;
+  signup: (input: { email: string; password: string; companyName?: string }) => Promise<SignupResult>;
   logout: () => void;
   refresh: () => Promise<void>;
 }
@@ -51,11 +61,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const signup = useCallback(async (input: { email: string; password: string; companyName?: string }) => {
+    // F-2 v2: /api/console/signup returns 202 + { status: 'pending_verification', message }.
+    // No token or API key here — those arrive on /dashboard/signup-complete after the
+    // user clicks the verification link in their inbox.
     const res = await api.signup(input);
-    setToken(res.token);
-    await refresh();
-    return { apiKey: res.apiKey.key, warning: res.apiKey.warning, tenant: res.tenant };
-  }, [refresh]);
+    return { status: res.status, message: res.message };
+  }, []);
 
   const logout = useCallback(() => {
     setToken(null);

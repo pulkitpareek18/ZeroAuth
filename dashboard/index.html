@@ -3,13 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
     <title>ZeroAuth — Developer Console</title>
     <meta name="description" content="ZeroAuth developer console: API keys, devices, users, verifications, attendance, audit log." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script>
+      // Read the theme preference BEFORE React mounts so there's no flash
+      // of the wrong colour. Storage value: 'light' | 'dark' | 'system'
+      // (default 'system'). The CSS layer handles the prefers-color-scheme
+      // case when data-theme isn't set.
+      (function () {
+        try {
+          var stored = localStorage.getItem('zeroauth.theme');
+          if (stored === 'light' || stored === 'dark') {
+            document.documentElement.setAttribute('data-theme', stored);
+          }
+          requestAnimationFrame(function () {
+            document.documentElement.classList.add('theme-ready');
+          });
+        } catch (e) { /* localStorage blocked — fall back to system */ }
+      })();
+    </script>
   </head>
   <body class="h-full bg-[var(--color-bg)] text-[var(--color-text)]">
     <div id="root" class="h-full"></div>

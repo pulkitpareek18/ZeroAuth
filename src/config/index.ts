@@ -16,11 +16,16 @@ function parseCorsOrigins(): string[] {
   if (raw && raw.trim().length > 0) {
     return raw.split(',').map(s => s.trim()).filter(Boolean);
   }
-  // Fallback: derive from API_BASE_URL in prod, or use dev defaults
+  // Fallback: derive from the resolved public URLs in prod, dev defaults otherwise.
   if (process.env.NODE_ENV === 'production') {
-    return [process.env.API_BASE_URL ?? 'https://zeroauth.dev'];
+    return [
+      process.env.API_BASE_URL ?? 'https://api.zeroauth.dev',
+      process.env.CONSOLE_BASE_URL ?? 'https://console.zeroauth.dev',
+      process.env.DOCS_BASE_URL ?? 'https://docs.zeroauth.dev',
+      process.env.LANDING_BASE_URL ?? 'https://zeroauth.dev',
+    ];
   }
-  return ['http://localhost:3000', 'http://localhost:5173'];
+  return ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5050'];
 }
 
 // Demo-auth gate: the legacy SAML/OIDC routes are not real protocol
@@ -38,6 +43,19 @@ export const config = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '3000', 10),
   apiBaseUrl: process.env.API_BASE_URL ?? 'http://localhost:3000',
+  /**
+   * Public-facing URLs for the four product surfaces. After the
+   * subdomain refactor these resolve to:
+   *   api      → https://api.zeroauth.dev
+   *   console  → https://console.zeroauth.dev
+   *   docs     → https://docs.zeroauth.dev
+   *   landing  → https://zeroauth.dev
+   * In dev they collapse onto a single Express host so the existing
+   * round-trip tests don't need DNS plumbing.
+   */
+  consoleBaseUrl: process.env.CONSOLE_BASE_URL ?? (process.env.NODE_ENV === 'production' ? 'https://console.zeroauth.dev' : 'http://localhost:3000/dashboard'),
+  docsBaseUrl: process.env.DOCS_BASE_URL ?? (process.env.NODE_ENV === 'production' ? 'https://docs.zeroauth.dev' : 'http://localhost:3000/docs'),
+  landingBaseUrl: process.env.LANDING_BASE_URL ?? (process.env.NODE_ENV === 'production' ? 'https://zeroauth.dev' : 'http://localhost:3000'),
   corsOrigins: parseCorsOrigins(),
   trustProxy: process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production',
   enableDemoAuth: resolveDemoAuthFlag(),

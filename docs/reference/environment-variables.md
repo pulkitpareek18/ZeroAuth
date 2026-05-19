@@ -28,7 +28,7 @@ If you are integrating with ZeroAuth's hosted API, you do not need to configure 
 | --- | --- | --- | --- |
 | `SAML_ENTRY_POINT` | `https://idp.example.com/sso/saml` | No | IdP SSO endpoint returned by `/v1/auth/saml/login`. |
 | `SAML_ISSUER` | `zeroauth-sp` | No | SP entity ID used in login response and metadata XML. |
-| `SAML_CALLBACK_URL` | `https://zeroauth.dev/v1/auth/saml/callback` | No | Assertion Consumer Service URL in metadata XML. |
+| `SAML_CALLBACK_URL` | `https://api.zeroauth.dev/v1/auth/saml/callback` | No | Assertion Consumer Service URL in metadata XML. |
 | `SAML_CERT` | empty | No | IdP certificate for assertion validation. |
 
 ## OIDC
@@ -38,7 +38,7 @@ If you are integrating with ZeroAuth's hosted API, you do not need to configure 
 | `OIDC_ISSUER` | `https://accounts.google.com` | No | Used to build the authorize URL. |
 | `OIDC_CLIENT_ID` | empty | No | Included in the authorize URL. |
 | `OIDC_CLIENT_SECRET` | empty | No | Used for token exchange. |
-| `OIDC_REDIRECT_URI` | `https://zeroauth.dev/v1/auth/oidc/callback` | No | Included in the authorize URL. |
+| `OIDC_REDIRECT_URI` | `https://api.zeroauth.dev/v1/auth/oidc/callback` | No | Included in the authorize URL. |
 
 ## Session and Admin
 
