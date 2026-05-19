@@ -82,7 +82,7 @@ The remote script:
 1. validates Docker Compose config
 2. runs `docker compose --profile prod up -d --build --remove-orphans`
 3. waits for `zeroauth-prod` to become healthy
-4. calls `https://zeroauth.dev/api/health`
+4. calls `https://api.zeroauth.dev/api/health`
 5. prunes dangling Docker images
 
 ## Important Build Detail
@@ -100,7 +100,7 @@ That means deploys no longer depend on someone manually prebuilding `website/bui
 1. Add `DEPLOY_SSH_KEY` to GitHub repository secrets.
 2. Ensure `/opt/zeroauth/.env` exists on the VPS and is not overwritten by CI/CD.
 3. Push to `main` or trigger the Deploy workflow manually.
-4. Verify [https://zeroauth.dev/api/health](https://zeroauth.dev/api/health).
+4. Verify [https://api.zeroauth.dev/api/health](https://api.zeroauth.dev/api/health).
 
 ## Recommended Hardening
 

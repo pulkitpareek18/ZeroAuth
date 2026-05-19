@@ -21,7 +21,7 @@ The platform also provides:
 
 ## How It Works
 
-1. **Sign up** at `https://zeroauth.dev/api/console/signup` and get your API key.
+1. **Sign up** at `https://api.zeroauth.dev/api/console/signup` and get your API key.
 2. **Authenticate requests** with `Authorization: Bearer za_live_YOUR_KEY`.
 3. **Call v1 endpoints** — register identities, verify ZK proofs, initiate SSO flows.
 4. **Monitor usage** via the developer console API.

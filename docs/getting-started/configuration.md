@@ -4,7 +4,7 @@ ZeroAuth is a hosted API — there is nothing to install or configure on your se
 
 ## Getting Started
 
-1. [Sign up](https://zeroauth.dev/api/console/signup) for a ZeroAuth account.
+1. [Sign up](https://api.zeroauth.dev/api/console/signup) for a ZeroAuth account.
 2. Copy your API key (shown once at signup).
 3. Add your API key to your application's environment:
 
@@ -13,7 +13,7 @@ ZeroAuth is a hosted API — there is nothing to install or configure on your se
 ZEROAUTH_API_KEY=za_live_YOUR_KEY_HERE
 ```
 
-4. Make API calls to `https://zeroauth.dev/v1/*`.
+4. Make API calls to `https://api.zeroauth.dev/v1/*`.
 
 ## API Key Configuration
 
@@ -23,11 +23,11 @@ Use one of two methods in every request:
 
 ```bash
 # Option A: Authorization header (recommended)
-curl https://zeroauth.dev/v1/auth/zkp/nonce \
+curl https://api.zeroauth.dev/v1/auth/zkp/nonce \
   -H "Authorization: Bearer za_live_YOUR_KEY"
 
 # Option B: X-API-Key header
-curl https://zeroauth.dev/v1/auth/zkp/nonce \
+curl https://api.zeroauth.dev/v1/auth/zkp/nonce \
   -H "X-API-Key: za_live_YOUR_KEY"
 ```
 
@@ -37,7 +37,7 @@ When creating additional API keys, restrict scopes to only what each service nee
 
 ```bash
 # Backend that only verifies proofs
-curl -X POST https://zeroauth.dev/api/console/keys \
+curl -X POST https://api.zeroauth.dev/api/console/keys \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -62,7 +62,7 @@ Use separate keys for development and production:
 Your backend calls ZeroAuth APIs directly:
 
 ```
-Your Backend  -->  https://zeroauth.dev/v1/*
+Your Backend  -->  https://api.zeroauth.dev/v1/*
 ```
 
 Store the API key as a server-side environment variable. Never expose it to the browser.
@@ -117,7 +117,7 @@ Limits are per-tenant (not per-key):
 Monitor your usage:
 
 ```bash
-curl https://zeroauth.dev/api/console/usage \
+curl https://api.zeroauth.dev/api/console/usage \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN"
 ```
 

@@ -7,7 +7,7 @@ The ZeroAuth Developer Console provides API key management, usage monitoring, an
 Console endpoints use session tokens (not API keys). Get a console token by logging in:
 
 ```bash
-curl -X POST https://zeroauth.dev/api/console/login \
+curl -X POST https://api.zeroauth.dev/api/console/login \
   -H "Content-Type: application/json" \
   -d '{"email": "dev@yourcompany.com", "password": "your-password"}'
 ```
@@ -38,7 +38,7 @@ Console tokens expire after 24 hours.
 ### List Keys
 
 ```bash
-curl https://zeroauth.dev/api/console/keys \
+curl https://api.zeroauth.dev/api/console/keys \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN"
 ```
 
@@ -47,7 +47,7 @@ Returns all keys (active and revoked) with prefix, scopes, environment, and last
 ### Create a Key
 
 ```bash
-curl -X POST https://zeroauth.dev/api/console/keys \
+curl -X POST https://api.zeroauth.dev/api/console/keys \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -62,7 +62,7 @@ The raw API key is shown **exactly once** in the response. Copy it immediately.
 ### Revoke a Key
 
 ```bash
-curl -X DELETE https://zeroauth.dev/api/console/keys/KEY_UUID \
+curl -X DELETE https://api.zeroauth.dev/api/console/keys/KEY_UUID \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN"
 ```
 
@@ -73,7 +73,7 @@ Revocation is immediate and irreversible. Maximum 10 active keys per account.
 ### Usage Summary
 
 ```bash
-curl https://zeroauth.dev/api/console/usage \
+curl https://api.zeroauth.dev/api/console/usage \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN"
 ```
 
@@ -98,7 +98,7 @@ Returns:
 ### Account Info
 
 ```bash
-curl https://zeroauth.dev/api/console/account \
+curl https://api.zeroauth.dev/api/console/account \
   -H "Authorization: Bearer YOUR_CONSOLE_TOKEN"
 ```
 

@@ -31,7 +31,7 @@ All authentication and identity endpoints are available under the `/v1/` version
 
 ZeroAuth is a hosted API platform. Integration requires:
 
-1. **Sign up** at `https://zeroauth.dev/api/console/signup`
+1. **Sign up** at `https://api.zeroauth.dev/api/console/signup`
 2. **Get an API key** — shown once at creation, stored as SHA-256 hash
 3. **Make API calls** with `Authorization: Bearer za_live_YOUR_KEY`
 4. **Monitor usage** via the developer console API

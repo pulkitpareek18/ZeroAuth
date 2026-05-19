@@ -20,7 +20,7 @@ These endpoints are for the developer or operator building on ZeroAuth.
 Create a tenant account and receive the first live API key.
 
 ```bash
-curl -X POST https://zeroauth.dev/api/console/signup \
+curl -X POST https://api.zeroauth.dev/api/console/signup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "dev@company.com",
@@ -104,7 +104,7 @@ Devices model real enterprise assets such as the battery-powered attendance devi
 Register a device.
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/devices \
+curl -X POST https://api.zeroauth.dev/v1/devices \
   -H "Authorization: Bearer za_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -141,7 +141,7 @@ Users are business identities enrolled under a tenant. This layer stores non-bio
 Create an enrolled user.
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/users \
+curl -X POST https://api.zeroauth.dev/v1/users \
   -H "Authorization: Bearer za_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -177,7 +177,7 @@ Verifications are product-level decision records. This is the shared API contrac
 Record a verification outcome.
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/verifications \
+curl -X POST https://api.zeroauth.dev/v1/verifications \
   -H "Authorization: Bearer za_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -229,7 +229,7 @@ Attendance is the Week 2 showcase surface. It should be driven by the same verif
 Record a check-in or check-out event.
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/attendance \
+curl -X POST https://api.zeroauth.dev/v1/attendance \
   -H "Authorization: Bearer za_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{

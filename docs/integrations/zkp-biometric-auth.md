@@ -19,7 +19,7 @@ ZeroAuth's ZKP flow provides privacy-preserving biometric authentication. The se
 ### Request
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/auth/zkp/register \
+curl -X POST https://api.zeroauth.dev/v1/auth/zkp/register \
   -H "Authorization: Bearer za_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -124,7 +124,7 @@ Artifacts you need on the client side:
 You can inspect the configured circuit metadata from:
 
 ```bash
-curl https://zeroauth.dev/v1/auth/zkp/circuit-info \
+curl https://api.zeroauth.dev/v1/auth/zkp/circuit-info \
   -H "Authorization: Bearer za_live_YOUR_KEY"
 ```
 
@@ -138,7 +138,7 @@ The API does not directly expose the proving key, so most teams either:
 Fetch a nonce before proof submission:
 
 ```bash
-curl https://zeroauth.dev/v1/auth/zkp/nonce \
+curl https://api.zeroauth.dev/v1/auth/zkp/nonce \
   -H "Authorization: Bearer za_live_YOUR_KEY"
 ```
 
@@ -162,7 +162,7 @@ Verification checks:
 ### Request
 
 ```bash
-curl -X POST https://zeroauth.dev/v1/auth/zkp/verify \
+curl -X POST https://api.zeroauth.dev/v1/auth/zkp/verify \
   -H "Authorization: Bearer za_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
