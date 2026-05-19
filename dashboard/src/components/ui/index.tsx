@@ -12,10 +12,14 @@ const buttonBase =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]';
 
 const buttonVariants: Record<ButtonVariant, string> = {
-  primary: 'bg-[var(--color-brand)] text-white hover:bg-[var(--color-brand-dark)]',
+  // The brand is monochrome ink, so it flips with the theme: black in
+  // light, near-white in dark. The text colour must flip too — use
+  // --color-bg so the button is always the OPPOSITE of the page bg,
+  // not a hard-coded white that goes invisible against a white brand.
+  primary: 'bg-[var(--color-brand)] text-[var(--color-bg)] hover:bg-[var(--color-brand-dark)]',
   secondary: 'bg-[var(--color-bg-surface)] text-[var(--color-text)] border border-[var(--color-border)] hover:bg-[var(--color-bg-raised)]',
   ghost: 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-raised)]',
-  danger: 'bg-[var(--color-danger)] text-white hover:opacity-90',
+  danger: 'bg-[var(--color-danger)] text-[var(--color-bg)] hover:opacity-90',
 };
 
 const buttonSizes: Record<ButtonSize, string> = {
