@@ -52,9 +52,7 @@ zeroauth.dev, www.zeroauth.dev {
 
 	reverse_proxy zeroauth-prod:3000 {
 		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-For {remote_host}
 		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-Host {host}
 	}
 
 	import asset_caching
@@ -68,9 +66,7 @@ api.zeroauth.dev {
 
 	reverse_proxy zeroauth-prod:3000 {
 		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-For {remote_host}
 		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-Host {host}
 	}
 
 	import security_headers
@@ -79,18 +75,23 @@ api.zeroauth.dev {
 
 # ─── console.zeroauth.dev — developer console ───────────────────
 # The upstream Express app serves the dashboard SPA at /dashboard/*.
-# On this vhost users see a bare-domain UX, so we rewrite the request
-# path to add the /dashboard prefix before proxying upstream.
+# The Vite-built bundle uses `/dashboard/` as its base, so the SPA's
+# index.html already references /dashboard/assets/X.js.
+#
+# We want users to see a bare-domain UX (console.zeroauth.dev/login,
+# not console.zeroauth.dev/dashboard/login), so prepend /dashboard for
+# requests that don't already carry it. The guard avoids the
+# double-prefix /dashboard/dashboard/assets/... that broke asset
+# loading and left the SPA blank.
 console.zeroauth.dev {
 	encode zstd gzip
 
-	rewrite * /dashboard{uri}
+	@needs_prefix not path /dashboard /dashboard/*
+	rewrite @needs_prefix /dashboard{uri}
 
 	reverse_proxy zeroauth-prod:3000 {
 		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-For {remote_host}
 		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-Host {host}
 	}
 
 	import asset_caching
@@ -99,16 +100,18 @@ console.zeroauth.dev {
 }
 
 # ─── docs.zeroauth.dev — Docusaurus build ───────────────────────
+# Mirrors the console story: Docusaurus is built with baseUrl /docs/
+# so its rendered HTML already references /docs/assets/X.css. Only
+# prepend /docs when not already present.
 docs.zeroauth.dev {
 	encode zstd gzip
 
-	rewrite * /docs{uri}
+	@needs_prefix not path /docs /docs/*
+	rewrite @needs_prefix /docs{uri}
 
 	reverse_proxy zeroauth-prod:3000 {
 		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-For {remote_host}
 		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-Host {host}
 	}
 
 	import asset_caching
