@@ -950,13 +950,13 @@
         <a href="#quickstart">Quickstart</a>
         <a href="#demo">Demo</a>
         <a href="#features">Product</a>
-        <a href="/docs/">Docs</a>
+        <a href="https://docs.zeroauth.dev/">Docs</a>
         <a href="https://github.com/zeroauth-dev/ZeroAuth">GitHub</a>
       </nav>
 
       <div style="display:flex; align-items:center; gap:20px;">
-        <a href="/dashboard/login" class="nav-sign-in">Sign in</a>
-        <a href="/dashboard/signup" class="nav-cta">Get started <span aria-hidden="true">→</span></a>
+        <a href="https://console.zeroauth.dev/login" class="nav-sign-in">Sign in</a>
+        <a href="https://console.zeroauth.dev/signup" class="nav-cta">Get started <span aria-hidden="true">→</span></a>
       </div>
     </div>
   </header>
@@ -975,7 +975,7 @@
           What we store cannot be reversed, replayed, or sold.
         </p>
         <div class="hero-actions">
-          <a href="/dashboard/signup" class="btn">Start building <span class="arrow" aria-hidden="true">→</span></a>
+          <a href="https://console.zeroauth.dev/signup" class="btn">Start building <span class="arrow" aria-hidden="true">→</span></a>
           <a href="#demo" class="btn ghost">See it run</a>
         </div>
 
@@ -1053,8 +1053,8 @@
               <p>On every login, send the Groth16 proof to <span class="ic">/v1/verifications</span>. Get back a verified principal in under 100 ms.</p>
             </div>
             <div class="qs-actions">
-              <a href="/dashboard/signup" class="btn">Create free account</a>
-              <a href="/docs/getting-started/quickstart/" class="btn ghost">Quickstart guide</a>
+              <a href="https://console.zeroauth.dev/signup" class="btn">Create free account</a>
+              <a href="https://docs.zeroauth.dev/getting-started/quickstart/" class="btn ghost">Quickstart guide</a>
             </div>
           </div>
 
@@ -1068,7 +1068,7 @@
 
             <div class="code-pane active" data-pane="curl">
 <pre><span class="c-cmt"># 1. Register a user with a commitment</span>
-curl <span class="c-kw">-X</span> POST <span class="c-str">https://zeroauth.dev/v1/users/register</span> \
+curl <span class="c-kw">-X</span> POST <span class="c-str">https://api.zeroauth.dev/v1/users/register</span> \
   <span class="c-kw">-H</span> <span class="c-str">"Authorization: Bearer $ZEROAUTH_API_KEY"</span> \
   <span class="c-kw">-H</span> <span class="c-str">"Content-Type: application/json"</span> \
   <span class="c-kw">-d</span> <span class="c-str">'{
@@ -1077,7 +1077,7 @@ curl <span class="c-kw">-X</span> POST <span class="c-str">https://zeroauth.dev/
   }'</span>
 
 <span class="c-cmt"># 2. Verify a Groth16 proof at login</span>
-curl <span class="c-kw">-X</span> POST <span class="c-str">https://zeroauth.dev/v1/verifications</span> \
+curl <span class="c-kw">-X</span> POST <span class="c-str">https://api.zeroauth.dev/v1/verifications</span> \
   <span class="c-kw">-H</span> <span class="c-str">"Authorization: Bearer $ZEROAUTH_API_KEY"</span> \
   <span class="c-kw">-H</span> <span class="c-str">"Content-Type: application/json"</span> \
   <span class="c-kw">-d</span> <span class="c-str">'{
@@ -1420,7 +1420,7 @@ result = za.verifications.<span class="c-fn">create</span>(
                 </div>
                 <button type="submit" class="btn-submit">Contact sales</button>
               </form>
-              <p class="form-note">For self-serve: <a href="/dashboard/signup">create an account →</a></p>
+              <p class="form-note">For self-serve: <a href="https://console.zeroauth.dev/signup">create an account →</a></p>
             </div>
             <div class="form-success hidden" id="pilotSuccess">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -1510,8 +1510,8 @@ result = za.verifications.<span class="c-fn">create</span>(
             <li><a href="#quickstart">Quickstart</a></li>
             <li><a href="#demo">Live demo</a></li>
             <li><a href="#features">Features</a></li>
-            <li><a href="/docs/">Documentation</a></li>
-            <li><a href="/docs/reference/api-reference">API reference</a></li>
+            <li><a href="https://docs.zeroauth.dev/">Documentation</a></li>
+            <li><a href="https://docs.zeroauth.dev/reference/api-reference">API reference</a></li>
           </ul>
         </div>
 
@@ -1529,8 +1529,8 @@ result = za.verifications.<span class="c-fn">create</span>(
         <div class="footer-col">
           <h4>Company</h4>
           <ul role="list">
-            <li><a href="/dashboard/login">Sign in</a></li>
-            <li><a href="/dashboard/signup">Get started</a></li>
+            <li><a href="https://console.zeroauth.dev/login">Sign in</a></li>
+            <li><a href="https://console.zeroauth.dev/signup">Get started</a></li>
             <li><a href="#pilot">Contact sales</a></li>
             <li><a href="https://github.com/zeroauth-dev/ZeroAuth/blob/main/LICENSE">MIT license</a></li>
             <li><a href="https://github.com/zeroauth-dev/ZeroAuth/blob/main/CODE_OF_CONDUCT.md">Code of conduct</a></li>
