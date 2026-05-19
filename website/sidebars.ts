@@ -45,6 +45,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'reference/central-api',
         'reference/api-reference',
+        'reference/playground',
         'reference/environment-variables',
         'reference/contracts-and-circuit',
       ],
