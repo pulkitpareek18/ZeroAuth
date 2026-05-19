@@ -12,8 +12,13 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://zeroauth.dev',
-  baseUrl: '/docs/',
+  // After the subdomain split docs lives at its own host and is served
+  // at the root, so baseUrl is '/'. Caddy still rewrites the request to
+  // '/docs/*' before reaching the Express upstream (which mounts the
+  // static build under /docs/*) — but the *URL the browser sees* must
+  // start at '/' for the Docusaurus client router to match its routes.
+  url: 'https://docs.zeroauth.dev',
+  baseUrl: '/',
   onBrokenLinks: 'warn',
 
   i18n: {

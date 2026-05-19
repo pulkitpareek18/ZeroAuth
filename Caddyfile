@@ -103,13 +103,26 @@ console.zeroauth.dev {
 }
 
 # ─── docs.zeroauth.dev — Docusaurus build ───────────────────────
-# Same shape as console: Docusaurus is built with baseUrl /docs/, the
-# API playground component fetches /v1/* with relative URLs, so we
-# pass those through verbatim and only prepend /docs for SPA routes.
+# Docusaurus is now built with baseUrl '/' so the in-browser URL the
+# client router matches against is the bare path the user sees. The
+# Express upstream still mounts the static files under /docs/*, so
+# Caddy rewrites the *server-side* request to add the prefix back —
+# but the browser URL stays clean.
+#
+# Two extra rules guard the edges:
+#   1. Old bookmarks that hit docs.zeroauth.dev/docs/X get a 301 to
+#      the new canonical URL '/X'. Without this the client router
+#      would 404 because no '/docs/*' route exists anymore.
+#   2. /api/* and /v1/* skip the rewrite so the playground (and any
+#      future fetch) reaches the real API handlers, not the SPA
+#      catch-all served at /docs.
 docs.zeroauth.dev {
 	encode zstd gzip
 
-	@needs_prefix not path /docs /docs/* /api /api/* /v1 /v1/*
+	@legacy_docs_prefix path_regexp legacy ^/docs(/.*)?$
+	redir @legacy_docs_prefix https://docs.zeroauth.dev{re.legacy.1} permanent
+
+	@needs_prefix not path /api /api/* /v1 /v1/*
 	rewrite @needs_prefix /docs{uri}
 
 	reverse_proxy zeroauth-prod:3000 {
