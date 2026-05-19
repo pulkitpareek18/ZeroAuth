@@ -28,6 +28,14 @@ if docker ps --format '{{.Names}}' | grep -q '^zeroauth-caddy$'; then
   echo "Reloading Caddy to pick up Caddyfile changes..."
   docker exec zeroauth-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile \
     || docker restart zeroauth-caddy
+
+  # Give Caddy a moment to provision certs for any new vhosts, then dump
+  # its recent log so ACME failures land in the deploy output instead of
+  # silently hiding inside the container.
+  sleep 25
+  echo "--- caddy logs (last 200 lines) ---"
+  docker logs --tail 200 zeroauth-caddy 2>&1 || true
+  echo "--- end caddy logs ---"
 fi
 
 echo "Waiting for zeroauth-prod health check..."
