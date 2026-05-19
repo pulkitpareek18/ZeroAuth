@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ZeroAuth — Fingerprint demo</title>
+  <title>ZeroAuth — Sign in</title>
   <link rel="icon" type="image/svg+xml" href="/zeroauth-mark.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
   <style>
     *,*::before,*::after { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
@@ -19,76 +19,95 @@
       line-height: 1.55;
       -webkit-font-smoothing: antialiased;
       min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       padding: clamp(24px, 5vw, 56px);
     }
-    .wrap { max-width: 1080px; margin: 0 auto; }
-    header {
-      display: flex; align-items: center; gap: 12px;
-      margin-bottom: clamp(40px, 6vw, 64px);
+    .shell { width: 100%; max-width: 480px; }
+
+    /* ── Brand header ── */
+    .brand {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 14px;
+      margin-bottom: 28px;
     }
-    header img { width: 36px; height: 36px; }
-    header h1 {
-      margin: 0;
+    .brand-mark { width: 56px; height: 56px; }
+    .brand-name {
       font-family: 'Fraunces', serif;
       font-weight: 400;
-      font-variation-settings: 'opsz' 60;
-      font-size: 22px;
+      font-variation-settings: 'opsz' 144;
+      font-size: 26px;
       letter-spacing: -0.01em;
+      color: #0a0a0a;
     }
-    header .badge {
-      margin-left: auto;
+    .brand-tag {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      letter-spacing: 0.08em;
+      font-size: 10px;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
       color: #6e6e6e;
-      display: inline-flex; align-items: center; gap: 8px;
     }
-    header .badge .dot {
-      width: 6px; height: 6px; border-radius: 999px; background: #1a7a4a;
-    }
-    .hero {
-      margin-bottom: clamp(36px, 5vw, 56px);
-      max-width: 64ch;
-    }
-    .hero h2 {
-      margin: 0 0 12px;
-      font-family: 'Fraunces', serif;
-      font-weight: 300;
-      font-variation-settings: 'opsz' 144;
-      font-size: clamp(2rem, 4vw, 3rem);
-      line-height: 1.05;
-      letter-spacing: -0.03em;
-    }
-    .hero h2 em { font-style: italic; font-weight: 400; }
-    .hero p { color: #525252; max-width: 56ch; }
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0;
-      border: 1px solid #e5e5e5;
-      background: #fff;
-    }
-    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+
+    /* ── Card ── */
     .card {
-      padding: clamp(24px, 3vw, 40px);
-      display: flex; flex-direction: column; gap: 18px;
-      border-right: 1px solid #e5e5e5;
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      padding: clamp(24px, 4vw, 36px);
     }
-    .card:last-child { border-right: 0; }
-    @media (max-width: 720px) {
-      .card { border-right: 0; border-bottom: 1px solid #e5e5e5; }
-      .card:last-child { border-bottom: 0; }
+    .tabs {
+      display: grid; grid-template-columns: 1fr 1fr;
+      border-bottom: 1px solid #e5e5e5;
+      margin: -36px -36px 28px;
+      margin-top: -24px;
     }
-    .card h3 {
-      margin: 0;
+    @media (max-width: 480px) { .tabs { margin: -24px -24px 24px; } }
+    .tab {
+      padding: 18px 0;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #8e8e8e;
+      background: #fafafa;
+      cursor: pointer;
+      border: 0;
+      border-bottom: 1px solid #e5e5e5;
+      transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
+    }
+    .tab.active {
+      color: #0a0a0a;
+      background: #fff;
+      border-bottom: 1px solid #fff;
+    }
+    .tab:focus { outline: none; }
+
+    /* ── Steps ── */
+    .step-head { margin-bottom: 22px; }
+    .step-eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #8e8e8e;
+      margin-bottom: 6px;
+    }
+    .step-title {
       font-family: 'Fraunces', serif;
       font-weight: 400;
       font-variation-settings: 'opsz' 60;
       font-size: 1.5rem;
       letter-spacing: -0.02em;
+      margin: 0 0 6px;
     }
-    .card p { margin: 0; color: #525252; font-size: 14px; }
+    .step-sub {
+      font-size: 14px;
+      color: #525252;
+      margin: 0;
+    }
+
+    /* ── Form fields ── */
     label {
       display: block;
       font-size: 11px;
@@ -98,10 +117,10 @@
       color: #6e6e6e;
       margin-bottom: 6px;
     }
-    input[type="email"] {
+    input[type="email"], input.otp-cell {
       width: 100%;
-      height: 44px;
-      padding: 0 12px;
+      height: 48px;
+      padding: 0 14px;
       font: inherit;
       color: #0a0a0a;
       background: #fff;
@@ -110,10 +129,30 @@
       outline: none;
       transition: border-color 180ms ease;
     }
-    input[type="email"]:focus { border-color: #0a0a0a; }
-    button {
+    input[type="email"]:focus, input.otp-cell:focus { border-color: #0a0a0a; }
+    .field + .field { margin-top: 16px; }
+
+    /* OTP cell grid */
+    .otp-row {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+    }
+    .otp-cell {
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 22px;
+      letter-spacing: 0;
+      padding: 0;
+      height: 56px;
+    }
+
+    /* Button */
+    button.primary {
+      width: 100%;
       height: 48px;
-      padding-inline: 24px;
+      margin-top: 18px;
+      padding-inline: 18px;
       font: inherit;
       font-size: 12px;
       font-weight: 500;
@@ -125,16 +164,35 @@
       cursor: pointer;
       transition: background 180ms ease, color 180ms ease, opacity 180ms ease;
     }
-    button:hover:not(:disabled) { background: transparent; color: #0a0a0a; }
-    button:disabled { opacity: 0.55; cursor: progress; }
-    button.ghost {
-      background: transparent; color: #525252; border-color: #d4d4d4;
+    button.primary:hover:not(:disabled) { background: transparent; color: #0a0a0a; }
+    button.primary:disabled { opacity: 0.55; cursor: progress; }
+    .inline-link {
+      color: #0a0a0a; font-size: 13px; cursor: pointer; background: none; border: 0; padding: 0;
+      text-decoration: underline; text-underline-offset: 3px;
     }
-    button.ghost:hover:not(:disabled) {
-      background: #0a0a0a; color: #fff; border-color: #0a0a0a;
+    .inline-link:disabled { color: #8e8e8e; cursor: not-allowed; text-decoration: none; }
+    .row-between {
+      margin-top: 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; color: #6e6e6e;
     }
 
-    /* ─── Step indicator ─── */
+    /* Messages */
+    .msg {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border: 1px solid #e5e5e5;
+      background: #fafafa;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #525252;
+    }
+    .msg.ok { background: #f0f8f2; border-color: #cfe7d6; color: #1a7a4a; }
+    .msg.err { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+    .msg.dev { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+    .msg.dev strong { font-family: 'Inter Tight', sans-serif; font-weight: 600; }
+
+    /* ── Fingerprint indicator (carried over) ── */
     .indicator {
       border: 1px solid #e5e5e5;
       background: #fafafa;
@@ -149,7 +207,6 @@
     .indicator.working { background: #f4f4f4; border-color: #d4d4d4; }
     .indicator.success { background: #f0f8f2; border-color: #cfe7d6; }
     .indicator.error { background: #fef2f2; border-color: #fecaca; }
-
     .ind-icon {
       width: 72px; height: 72px;
       display: flex; align-items: center; justify-content: center;
@@ -162,18 +219,15 @@
     .indicator.working .ind-icon { color: #525252; animation: spin 1.6s linear infinite; }
     .indicator.success .ind-icon { color: #1a7a4a; }
     .indicator.error .ind-icon { color: #b91c1c; }
-
     .ind-icon svg { width: 100%; height: 100%; }
-
     .ind-line {
       font-family: 'Fraunces', serif;
       font-weight: 400;
       font-variation-settings: 'opsz' 60;
-      font-size: 20px;
+      font-size: 19px;
       letter-spacing: -0.01em;
       text-align: center;
       color: #0a0a0a;
-      min-height: 28px;
     }
     .ind-sub {
       font-family: 'JetBrains Mono', monospace;
@@ -185,27 +239,12 @@
     }
     .ind-detail {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
+      font-size: 11px;
       color: #525252;
       text-align: center;
-      min-height: 18px;
+      word-break: break-all;
     }
-
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50%      { transform: scale(1.12); opacity: 0.75; }
-    }
-    @keyframes lift {
-      0%, 100% { transform: translateY(0); }
-      50%      { transform: translateY(-8px); }
-    }
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to   { transform: rotate(360deg); }
-    }
-
-    /* ─── Stepper ─── */
-    .stepper { display: flex; gap: 8px; justify-content: center; margin-top: 4px; }
+    .stepper { display: flex; gap: 8px; justify-content: center; }
     .stepper .dot {
       width: 8px; height: 8px; border-radius: 999px; background: #d4d4d4;
       transition: background 200ms ease, transform 200ms ease;
@@ -213,141 +252,119 @@
     .stepper .dot.active { background: #0a0a0a; transform: scale(1.25); }
     .stepper .dot.done   { background: #1a7a4a; }
 
-    /* ─── Accounts table ─── */
-    .accounts {
-      margin-top: clamp(40px, 5vw, 56px);
-      padding: clamp(20px, 3vw, 28px);
-      background: #fff;
-      border: 1px solid #e5e5e5;
-    }
-    .accounts h4 {
-      margin: 0 0 16px;
-      font-size: 11px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: #6e6e6e;
-      font-weight: 500;
-    }
-    .accounts table {
-      width: 100%;
-      border-collapse: collapse;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-    }
-    .accounts th, .accounts td {
-      padding: 8px 0;
-      border-bottom: 1px solid #f0f0f0;
-      text-align: left;
-      color: #525252;
-    }
-    .accounts th {
-      font-family: 'Inter Tight', sans-serif;
-      font-size: 10px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: #8e8e8e;
-      font-weight: 500;
-    }
-    .accounts td:first-child { color: #0a0a0a; }
-    .accounts .empty { color: #8e8e8e; font-family: 'Inter Tight', sans-serif; font-size: 13px; }
-    .reset {
-      margin-top: 16px;
-      display: flex; justify-content: flex-end;
-    }
-    .reset button {
-      height: 36px;
-      padding-inline: 16px;
-      font-size: 11px;
-      letter-spacing: 0.12em;
-    }
+    @keyframes pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.75; } }
+    @keyframes lift  { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    @keyframes spin  { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* ── Footer ── */
     footer {
-      margin-top: clamp(40px, 5vw, 64px);
+      margin-top: 28px;
+      text-align: center;
+      font-size: 11px;
       color: #8e8e8e;
-      font-size: 12px;
     }
-    footer code { background: #f0f0f0; padding: 1px 6px; }
+    footer code { font-family: 'JetBrains Mono', monospace; background: #f0f0f0; padding: 1px 6px; }
+
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="shell">
 
-    <header>
-      <img src="/zeroauth-mark.svg" alt="" aria-hidden="true" />
-      <h1>ZeroAuth — Fingerprint demo</h1>
-      <span class="badge"><span class="dot"></span>Local bridge</span>
+    <header class="brand">
+      <img class="brand-mark" src="/zeroauth-mark.svg" alt="ZeroAuth" />
+      <div class="brand-name">ZeroAuth</div>
+      <div class="brand-tag">Email · OTP · Fingerprint</div>
     </header>
 
-    <section class="hero">
-      <h2>Email + <em>finger</em>. That's it.</h2>
-      <p>
-        The sensor captures, the host runs everything else. At signup we
-        upload the stable template, derive a Poseidon commitment, and
-        generate a Groth16 proof. At login we download the stored template
-        back into the sensor, ask for a 1:1 match, and re-verify the proof.
-        Capacity is bound by disk, not by the sensor's 1000-slot flash.
-      </p>
-    </section>
+    <main class="card">
+      <div class="tabs" role="tablist">
+        <button class="tab active" id="tab-login" role="tab">Sign in</button>
+        <button class="tab" id="tab-signup" role="tab">Create account</button>
+      </div>
 
-    <div class="grid">
-
-      <div class="card">
-        <h3>Sign up</h3>
-        <p>Two captures. The bridge combines them into a stable template, uploads it to the host, derives a Poseidon commitment, and generates + verifies a Groth16 proof.</p>
-        <div>
-          <label for="signup-email">Email</label>
-          <input id="signup-email" type="email" placeholder="you@example.com" autocomplete="email" />
+      <!-- ─── STEP: email ─── -->
+      <section class="step" id="step-email">
+        <div class="step-head">
+          <div class="step-eyebrow" id="email-eyebrow">Step 1 of 3 · Identify</div>
+          <h2 class="step-title" id="email-title">Sign in to ZeroAuth</h2>
+          <p class="step-sub" id="email-sub">We'll email you a one-time code, then ask for your finger.</p>
         </div>
-        <button id="signup-btn">Sign up with fingerprint</button>
-        <div class="indicator" id="signup-ind">
-          <div class="ind-icon" id="signup-icon"></div>
-          <div class="ind-line" id="signup-line">Ready</div>
-          <div class="ind-sub" id="signup-sub">Press the button above</div>
-          <div class="stepper" id="signup-steps">
+        <div class="field">
+          <label for="email-input">Work email</label>
+          <input id="email-input" type="email" placeholder="you@company.com" autocomplete="email" autofocus />
+        </div>
+        <button class="primary" id="email-submit">Continue</button>
+        <div class="msg" id="email-msg" hidden></div>
+      </section>
+
+      <!-- ─── STEP: OTP ─── -->
+      <section class="step hidden" id="step-otp">
+        <div class="step-head">
+          <div class="step-eyebrow">Step 2 of 3 · Confirm email</div>
+          <h2 class="step-title">Enter your code</h2>
+          <p class="step-sub" id="otp-sub">A 6-digit code is on its way to <strong id="otp-target"></strong>. Codes expire in 5 minutes.</p>
+        </div>
+        <div class="field">
+          <label>Verification code</label>
+          <div class="otp-row" id="otp-row">
+            <input class="otp-cell" type="text" maxlength="1" inputmode="numeric" autocomplete="one-time-code" data-otp-idx="0" />
+            <input class="otp-cell" type="text" maxlength="1" inputmode="numeric" autocomplete="one-time-code" data-otp-idx="1" />
+            <input class="otp-cell" type="text" maxlength="1" inputmode="numeric" autocomplete="one-time-code" data-otp-idx="2" />
+            <input class="otp-cell" type="text" maxlength="1" inputmode="numeric" autocomplete="one-time-code" data-otp-idx="3" />
+            <input class="otp-cell" type="text" maxlength="1" inputmode="numeric" autocomplete="one-time-code" data-otp-idx="4" />
+            <input class="otp-cell" type="text" maxlength="1" inputmode="numeric" autocomplete="one-time-code" data-otp-idx="5" />
+          </div>
+        </div>
+        <button class="primary" id="otp-submit">Verify</button>
+        <div class="row-between">
+          <button class="inline-link" id="otp-resend" type="button">Resend code</button>
+          <button class="inline-link" id="otp-back" type="button">Change email</button>
+        </div>
+        <div class="msg" id="otp-msg" hidden></div>
+        <div class="msg dev hidden" id="otp-dev"></div>
+      </section>
+
+      <!-- ─── STEP: fingerprint ─── -->
+      <section class="step hidden" id="step-finger">
+        <div class="step-head">
+          <div class="step-eyebrow" id="finger-eyebrow">Step 3 of 3 · Fingerprint</div>
+          <h2 class="step-title" id="finger-title">Place your finger</h2>
+          <p class="step-sub" id="finger-sub">The R307 captures, the host derives the commitment, and a Groth16 proof is verified before you're in.</p>
+        </div>
+        <div class="indicator" id="finger-ind">
+          <div class="ind-icon" id="finger-icon"></div>
+          <div class="ind-line" id="finger-line">Ready</div>
+          <div class="ind-sub" id="finger-sub-label">Press start</div>
+          <div class="stepper hidden" id="finger-steps">
             <span class="dot" data-step="1"></span>
             <span class="dot" data-step="2"></span>
           </div>
-          <div class="ind-detail" id="signup-detail"></div>
+          <div class="ind-detail" id="finger-detail"></div>
         </div>
-      </div>
+        <button class="primary" id="finger-start">Start fingerprint step</button>
+        <button class="inline-link" id="finger-cancel" type="button" style="display:block; margin-top:12px;">Start over</button>
+      </section>
 
-      <div class="card">
-        <h3>Log in</h3>
-        <p>Single capture. The host pushes the stored template back into the sensor and asks for a 1:1 match; on success it re-derives the commitment and verifies the proof.</p>
-        <div>
-          <label for="login-email">Email</label>
-          <input id="login-email" type="email" placeholder="you@example.com" autocomplete="email" />
+      <!-- ─── STEP: done ─── -->
+      <section class="step hidden" id="step-done">
+        <div class="step-head">
+          <div class="step-eyebrow" style="color:#1a7a4a;">Authenticated</div>
+          <h2 class="step-title" id="done-title">You're in.</h2>
+          <p class="step-sub" id="done-sub"></p>
         </div>
-        <button id="login-btn">Log in with fingerprint</button>
-        <div class="indicator" id="login-ind">
-          <div class="ind-icon" id="login-icon"></div>
-          <div class="ind-line" id="login-line">Ready</div>
-          <div class="ind-sub" id="login-sub">Press the button above</div>
-          <div class="ind-detail" id="login-detail"></div>
-        </div>
-      </div>
+        <div class="msg ok" id="done-meta"></div>
+        <button class="primary" id="done-restart">Run another flow</button>
+      </section>
 
-    </div>
-
-    <div class="accounts">
-      <h4>Bound accounts <span style="color:#8e8e8e">(host-side; sensor flash unused)</span></h4>
-      <table id="accounts-table">
-        <thead>
-          <tr><th>Email</th><th>DID</th><th>Created</th></tr>
-        </thead>
-        <tbody><tr><td class="empty" colspan="3">No accounts yet.</td></tr></tbody>
-      </table>
-      <div class="reset">
-        <button class="ghost" id="reset-btn">Clear all accounts</button>
-      </div>
-    </div>
+    </main>
 
     <footer>
-      Bridge: <code>iot/src/bridge.ts</code> on <code id="origin">http://localhost:3100</code> · Sensor: R307 @ <code>/dev/cu.usbserial-0001</code>
+      Local bridge · <code id="origin">http://localhost:3100</code> · Sensor: R307 @ <code>/dev/cu.usbserial-0001</code>
     </footer>
 
   </div>
 
-  <!-- ── Inline icon SVGs we swap into the indicator ── -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
       <symbol id="i-finger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -387,31 +404,212 @@
       const $ = (id) => document.getElementById(id);
       $('origin').textContent = location.origin;
 
-      const signupBtn = $('signup-btn');
-      const loginBtn = $('login-btn');
-      const resetBtn = $('reset-btn');
-      const tableBody = $('accounts-table').querySelector('tbody');
+      // ── State ───────────────────────────────────────────────────
+      let kind = 'login';            // 'login' | 'signup'
+      let email = '';
+      let sessionToken = '';
 
-      // Set initial icons.
-      function icon(id, symbol) {
-        $(id).innerHTML = `<svg><use href="#${symbol}"/></svg>`;
+      // ── Step navigation ─────────────────────────────────────────
+      const steps = ['email', 'otp', 'finger', 'done'];
+      function show(step) {
+        steps.forEach((s) => $('step-' + s).classList.toggle('hidden', s !== step));
+        if (step === 'email') {
+          requestAnimationFrame(() => $('email-input').focus());
+        } else if (step === 'otp') {
+          requestAnimationFrame(() => document.querySelector('.otp-cell').focus());
+        }
       }
-      icon('signup-icon', 'i-finger');
-      icon('login-icon', 'i-finger');
 
-      // ── Indicator helpers ────────────────────────────────────────
-      function renderState(prefix, opts) {
-        const ind = $(prefix + '-ind');
+      // ── Tab switcher ───────────────────────────────────────────
+      function applyKind(next) {
+        kind = next;
+        $('tab-login').classList.toggle('active', kind === 'login');
+        $('tab-signup').classList.toggle('active', kind === 'signup');
+        $('email-title').textContent = kind === 'login' ? 'Sign in to ZeroAuth' : 'Create your ZeroAuth account';
+        $('email-sub').textContent = kind === 'login'
+          ? "We'll email you a one-time code, then ask for your finger."
+          : "We'll email you a one-time code, then enroll your fingerprint.";
+        $('email-eyebrow').textContent = `Step 1 of 3 · ${kind === 'login' ? 'Identify' : 'Identify'}`;
+        $('finger-title').textContent = kind === 'login' ? 'Place your finger' : 'Enroll your fingerprint';
+        $('finger-sub').textContent = kind === 'login'
+          ? 'The R307 captures, the host derives the commitment, and a Groth16 proof is verified before you\'re in.'
+          : 'Two captures (place → lift → place). The template is uploaded to the host and bound to your email.';
+        $('done-title').textContent = kind === 'login' ? 'You\'re in.' : 'Account created.';
+      }
+      $('tab-login').addEventListener('click', () => { applyKind('login'); resetFlow(); });
+      $('tab-signup').addEventListener('click', () => { applyKind('signup'); resetFlow(); });
+
+      function resetFlow() {
+        email = '';
+        sessionToken = '';
+        $('email-input').value = '';
+        $('otp-row').querySelectorAll('.otp-cell').forEach((c) => (c.value = ''));
+        hideMsg('email-msg');
+        hideMsg('otp-msg');
+        $('otp-dev').classList.add('hidden');
+        $('otp-dev').innerHTML = '';
+        resetFinger();
+        show('email');
+      }
+
+      // ── Message helpers ─────────────────────────────────────────
+      function showMsg(id, text, level) {
+        const el = $(id);
+        el.hidden = false;
+        el.classList.remove('ok', 'err', 'dev');
+        if (level) el.classList.add(level);
+        el.textContent = text;
+      }
+      function hideMsg(id) { const el = $(id); el.hidden = true; el.textContent = ''; }
+
+      // ── Step 1: email → request OTP ─────────────────────────────
+      $('email-submit').addEventListener('click', async () => {
+        const value = $('email-input').value.trim();
+        if (!value) { showMsg('email-msg', 'Enter your email first.', 'err'); return; }
+        $('email-submit').disabled = true;
+        try {
+          const r = await fetch('/api/demo/request-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: value, kind }),
+          });
+          const data = await r.json().catch(() => ({}));
+          if (r.status === 409 && data.error === 'already_registered') {
+            showMsg('email-msg', 'This email is already registered. Try Sign in.', 'err');
+            return;
+          }
+          if (r.status === 404 && data.error === 'no_account') {
+            showMsg('email-msg', 'No account on this email. Try Create account.', 'err');
+            return;
+          }
+          if (r.status === 429) {
+            const secs = Math.ceil((data.retryAfterMs || 30000) / 1000);
+            showMsg('email-msg', `Too many code requests. Retry in ${secs}s.`, 'err');
+            return;
+          }
+          if (!r.ok) {
+            showMsg('email-msg', data.message || data.error || `HTTP ${r.status}`, 'err');
+            return;
+          }
+          email = data.email;
+          $('otp-target').textContent = email;
+          hideMsg('email-msg');
+          $('otp-dev').classList.add('hidden'); $('otp-dev').innerHTML = '';
+          if (data.devCode) {
+            $('otp-dev').innerHTML = `<strong>Dev mode:</strong> the bridge is not wired to SMTP. Use code <strong style="letter-spacing:0.06em;font-family:'JetBrains Mono',monospace;">${data.devCode}</strong>.`;
+            $('otp-dev').classList.remove('hidden');
+          }
+          show('otp');
+        } catch (err) {
+          showMsg('email-msg', err.message || 'Network error.', 'err');
+        } finally {
+          $('email-submit').disabled = false;
+        }
+      });
+
+      $('email-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('email-submit').click(); });
+
+      // ── Step 2: OTP cells ──────────────────────────────────────
+      const otpCells = [...document.querySelectorAll('.otp-cell')];
+      otpCells.forEach((cell, idx) => {
+        cell.addEventListener('input', (e) => {
+          const v = e.target.value.replace(/\D/g, '').slice(0, 1);
+          e.target.value = v;
+          if (v && idx < otpCells.length - 1) otpCells[idx + 1].focus();
+        });
+        cell.addEventListener('keydown', (e) => {
+          if (e.key === 'Backspace' && !cell.value && idx > 0) otpCells[idx - 1].focus();
+          if (e.key === 'Enter') $('otp-submit').click();
+        });
+        cell.addEventListener('paste', (e) => {
+          const text = (e.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+          if (text.length < 2) return;
+          e.preventDefault();
+          for (let i = 0; i < otpCells.length; i++) {
+            otpCells[i].value = text[i] || '';
+          }
+          otpCells[Math.min(text.length, otpCells.length - 1)].focus();
+        });
+      });
+
+      $('otp-submit').addEventListener('click', async () => {
+        const code = otpCells.map((c) => c.value).join('');
+        if (code.length !== 6) { showMsg('otp-msg', 'Enter all 6 digits.', 'err'); return; }
+        $('otp-submit').disabled = true;
+        try {
+          const r = await fetch('/api/demo/verify-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, otp: code, kind }),
+          });
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok) {
+            const map = {
+              wrong_code: 'That code is wrong. Try again.',
+              expired: 'The code expired. Resend a new one.',
+              too_many_attempts: 'Too many wrong attempts. Resend a new code.',
+              no_pending: 'No pending code for this email. Request one first.',
+              kind_mismatch: 'The code is for a different flow. Request a new one.',
+            };
+            showMsg('otp-msg', map[data.reason] || data.message || data.error || 'Verification failed.', 'err');
+            return;
+          }
+          sessionToken = data.sessionToken;
+          hideMsg('otp-msg');
+          show('finger');
+          resetFinger();
+        } catch (err) {
+          showMsg('otp-msg', err.message || 'Network error.', 'err');
+        } finally {
+          $('otp-submit').disabled = false;
+        }
+      });
+
+      $('otp-resend').addEventListener('click', async () => {
+        $('otp-resend').disabled = true;
+        hideMsg('otp-msg');
+        try {
+          const r = await fetch('/api/demo/request-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, kind }),
+          });
+          const data = await r.json().catch(() => ({}));
+          if (r.status === 429) {
+            const secs = Math.ceil((data.retryAfterMs || 30000) / 1000);
+            showMsg('otp-msg', `Slow down — retry in ${secs}s.`, 'err');
+            return;
+          }
+          if (!r.ok) { showMsg('otp-msg', data.error || `HTTP ${r.status}`, 'err'); return; }
+          if (data.devCode) {
+            $('otp-dev').innerHTML = `<strong>Dev mode:</strong> new code is <strong style="letter-spacing:0.06em;font-family:'JetBrains Mono',monospace;">${data.devCode}</strong>.`;
+            $('otp-dev').classList.remove('hidden');
+          }
+          showMsg('otp-msg', 'A new code has been sent.', 'ok');
+          otpCells.forEach((c) => (c.value = ''));
+          otpCells[0].focus();
+        } finally {
+          $('otp-resend').disabled = false;
+        }
+      });
+
+      $('otp-back').addEventListener('click', () => { resetFlow(); });
+
+      // ── Step 3: fingerprint indicator ──────────────────────────
+      function icon(id, symbol) { $(id).innerHTML = `<svg><use href="#${symbol}"/></svg>`; }
+      icon('finger-icon', 'i-finger');
+
+      function renderFinger(opts) {
+        const ind = $('finger-ind');
         ind.classList.remove('placing', 'lifting', 'captured', 'working', 'success', 'error');
         if (opts.mood) ind.classList.add(opts.mood);
-        if (opts.icon) icon(prefix + '-icon', opts.icon);
-        if (opts.line !== undefined) $(prefix + '-line').textContent = opts.line;
-        if (opts.sub  !== undefined) $(prefix + '-sub').textContent  = opts.sub;
-        if (opts.detail !== undefined) $(prefix + '-detail').textContent = opts.detail;
+        if (opts.icon) icon('finger-icon', opts.icon);
+        if (opts.line !== undefined) $('finger-line').textContent = opts.line;
+        if (opts.sub !== undefined) $('finger-sub-label').textContent = opts.sub;
+        if (opts.detail !== undefined) $('finger-detail').textContent = opts.detail;
       }
-
       function renderSteps(active, done) {
-        const dots = $('signup-steps').querySelectorAll('.dot');
+        const dots = $('finger-steps').querySelectorAll('.dot');
         dots.forEach((dot) => {
           const step = Number(dot.dataset.step);
           dot.classList.remove('active', 'done');
@@ -419,29 +617,21 @@
           else if (active && step === active) dot.classList.add('active');
         });
       }
-
-      function resetIndicator(prefix) {
-        renderState(prefix, { mood: null, icon: 'i-finger', line: 'Ready', sub: 'Press the button above', detail: '' });
-        if (prefix === 'signup') renderSteps(0, 0);
+      function resetFinger() {
+        renderFinger({ mood: null, icon: 'i-finger', line: 'Ready', sub: 'Press start', detail: '' });
+        $('finger-steps').classList.toggle('hidden', kind !== 'signup');
+        renderSteps(0, 0);
       }
 
-      // ── Stream reader ─────────────────────────────────────────────
-      // Returns the raw response object so the caller can inspect
-      // status / parse a JSON body for the non-streamed (409) path.
       async function streamPost(url, body, onEvent) {
         const r = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         });
         const ct = r.headers.get('content-type') || '';
-        // 409 + plain JSON: the bridge decided synchronously (e.g. "already
-        // registered"). No stream to read.
         if (!ct.includes('ndjson')) {
           const data = await r.json().catch(() => ({}));
           return { streamed: false, status: r.status, data };
         }
-        if (!r.body) throw new Error('Streaming response not supported by this browser.');
         const reader = r.body.getReader();
         const decoder = new TextDecoder();
         let buf = '';
@@ -460,329 +650,111 @@
         return { streamed: true, status: r.status };
       }
 
-      // ── Phase → UI mapping ───────────────────────────────────────
-      function applySignupPhase(evt) {
+      function applyPhase(evt) {
+        const isSignup = kind === 'signup';
         switch (evt.phase) {
           case 'awaiting_finger':
-            renderState('signup', {
+            renderFinger({
               mood: 'placing',
               icon: 'i-finger-down',
-              line: evt.step === 1 ? 'Place your finger on the sensor' : 'Place the SAME finger again',
-              sub: `Capture ${evt.step} of 2`,
-              detail: 'Hold still until the indicator turns green.',
-            });
-            renderSteps(evt.step, evt.step - 1);
-            return;
-          case 'captured':
-            renderState('signup', {
-              mood: 'captured',
-              icon: 'i-check',
-              line: `Captured — scan ${evt.step}/2`,
-              sub: evt.step === 1 ? 'Now lift your finger' : 'Building template…',
+              line: isSignup && evt.step === 2 ? 'Place the SAME finger again' : 'Place your finger on the sensor',
+              sub: isSignup ? `Capture ${evt.step} of 2` : 'single capture',
               detail: '',
             });
-            renderSteps(evt.step, evt.step);
+            if (isSignup) renderSteps(evt.step, evt.step - 1);
+            return;
+          case 'captured':
+            renderFinger({
+              mood: 'captured',
+              icon: 'i-check',
+              line: isSignup ? `Captured — scan ${evt.step}/2` : 'Captured',
+              sub: isSignup && evt.step === 1 ? 'Now lift your finger' : 'building…',
+              detail: '',
+            });
+            if (isSignup) renderSteps(evt.step, evt.step);
             return;
           case 'awaiting_removal':
-            renderState('signup', {
-              mood: 'lifting',
-              icon: 'i-finger-up',
-              line: 'Lift your finger off the sensor',
-              sub: 'Waiting for finger removal…',
-              detail: '',
-            });
+            renderFinger({ mood: 'lifting', icon: 'i-finger-up', line: 'Lift your finger', sub: 'sensor waiting for removal', detail: '' });
             return;
           case 'removed':
-            renderState('signup', {
-              mood: 'working',
-              icon: 'i-spinner',
-              line: 'Good. Get ready for the second scan.',
-              sub: 'Resetting between captures',
-              detail: '',
-            });
+            renderFinger({ mood: 'working', icon: 'i-spinner', line: 'Good. Get ready for the second scan.', sub: 'resetting', detail: '' });
             return;
           case 'uploading_template':
-            renderState('signup', {
-              mood: 'working',
-              icon: 'i-spinner',
-              line: 'Uploading template to host',
-              sub: 'sensor flash untouched',
-              detail: '',
-            });
+            renderFinger({ mood: 'working', icon: 'i-spinner', line: 'Uploading template to host', sub: 'sensor flash untouched', detail: '' });
             renderSteps(0, 2);
-            return;
-          case 'retry':
-            renderState('signup', {
-              mood: 'lifting',
-              icon: 'i-finger-up',
-              line: `Let's try again — attempt ${evt.attempt} of 3`,
-              sub: 'Resetting captures',
-              detail: evt.reason || '',
-            });
-            renderSteps(0, 0);
-            return;
-          case 'deriving':
-            renderState('signup', {
-              mood: 'working',
-              icon: 'i-spinner',
-              line: 'Deriving Poseidon commitment',
-              sub: 'patent claim 3',
-              detail: evt.commitmentPreview || '',
-            });
-            return;
-          case 'proving':
-            renderState('signup', {
-              mood: 'working',
-              icon: 'i-spinner',
-              line: 'Generating Groth16 proof',
-              sub: 'bn128 · ~1s',
-              detail: '',
-            });
-            return;
-          case 'verifying':
-            renderState('signup', {
-              mood: 'working',
-              icon: 'i-spinner',
-              line: 'Verifying proof against the commitment',
-              sub: 'server side',
-              detail: '',
-            });
-            return;
-          case 'done': {
-            const r = evt.result || {};
-            renderState('signup', {
-              mood: 'success',
-              icon: 'i-check',
-              line: `Enrolled. You're set.`,
-              sub: `Slot ${r.slot} · commitment ${r.commitmentPreview || ''}`,
-              detail: r.did || r.email || '',
-            });
-            renderSteps(0, 2);
-            $('login-email').value = r.email || $('login-email').value;
-            return;
-          }
-          case 'error':
-            renderState('signup', {
-              mood: 'error',
-              icon: 'i-cross',
-              line: 'Signup failed',
-              sub: 'Try again',
-              detail: evt.message || '',
-            });
-            renderSteps(0, 0);
-            return;
-        }
-      }
-
-      function applyLoginPhase(evt) {
-        switch (evt.phase) {
-          case 'awaiting_finger':
-            renderState('login', {
-              mood: 'placing',
-              icon: 'i-finger-down',
-              line: 'Place your finger on the sensor',
-              sub: 'Single capture',
-              detail: '',
-            });
-            return;
-          case 'captured':
-            renderState('login', {
-              mood: 'captured',
-              icon: 'i-check',
-              line: 'Captured',
-              sub: 'Searching templates…',
-              detail: '',
-            });
             return;
           case 'loading_template':
-            renderState('login', {
-              mood: 'working',
-              icon: 'i-spinner',
-              line: 'Pushing stored template into the sensor',
-              sub: 'down_char → buf2',
-              detail: '',
-            });
+            renderFinger({ mood: 'working', icon: 'i-spinner', line: 'Pushing stored template into the sensor', sub: 'down_char → buf2', detail: '' });
             return;
           case 'matching':
-            renderState('login', {
-              mood: 'working',
-              icon: 'i-spinner',
-              line: '1:1 match — fresh capture vs stored template',
-              sub: evt.score !== undefined ? `score ${evt.score}` : 'sensor side',
-              detail: '',
-            });
+            renderFinger({ mood: 'working', icon: 'i-spinner', line: '1:1 match — fresh vs stored template', sub: evt.score !== undefined ? `score ${evt.score}` : 'sensor side', detail: '' });
             return;
           case 'deriving':
-            renderState('login', {
-              mood: 'working',
-              icon: 'i-spinner',
-              line: 'Re-deriving commitment from the matched slot',
-              sub: 'patent claim 3',
-              detail: evt.commitmentPreview || '',
-            });
+            renderFinger({ mood: 'working', icon: 'i-spinner', line: 'Deriving Poseidon commitment', sub: 'patent claim 3', detail: evt.commitmentPreview || '' });
             return;
           case 'proving':
-            renderState('login', {
-              mood: 'working',
-              icon: 'i-spinner',
-              line: 'Generating Groth16 proof of knowledge',
-              sub: 'bn128 · ~1s',
-              detail: '',
-            });
+            renderFinger({ mood: 'working', icon: 'i-spinner', line: 'Generating Groth16 proof', sub: 'bn128 · ~1s', detail: '' });
             return;
           case 'verifying':
-            renderState('login', {
-              mood: 'working',
-              icon: 'i-spinner',
-              line: 'Verifying proof against the stored commitment',
-              sub: 'server side',
-              detail: '',
-            });
+            renderFinger({ mood: 'working', icon: 'i-spinner', line: 'Verifying proof against the commitment', sub: 'server side', detail: '' });
+            return;
+          case 'retry':
+            renderFinger({ mood: 'lifting', icon: 'i-finger-up', line: `Let's try again — attempt ${evt.attempt} of 3`, sub: 'resetting captures', detail: evt.reason || '' });
+            renderSteps(0, 0);
             return;
           case 'done': {
             const r = evt.result || {};
-            if (r.matched) {
-              renderState('login', {
-                mood: 'success',
-                icon: 'i-check',
-                line: `Welcome, ${r.email}`,
-                sub: `Proof verified · score ${r.score} · ${r.commitmentPreview || ''}`,
-                detail: r.did || '',
-              });
-            } else {
+            if (kind === 'login' && !r.matched) {
               const explain =
-                r.reason === 'no_account'   ? 'No account bound to this email — sign up first.' :
-                r.reason === 'no_match'     ? 'Sensor did not recognise this finger.' :
-                r.reason === 'wrong_finger' ? `Sensor refused the 1:1 match against the stored template${r.score !== undefined ? ` (score ${r.score})` : ''}.` :
-                r.reason === 'proof_failed' ? 'Groth16 verification failed — refusing to authenticate.' :
-                'Login rejected.';
-              renderState('login', {
-                mood: 'error',
-                icon: 'i-cross',
-                line: 'Rejected',
-                sub: r.reason ? r.reason.replace(/_/g, ' ') : '',
-                detail: explain,
-              });
+                r.reason === 'wrong_finger' ? `Sensor refused the 1:1 match${r.score !== undefined ? ` (score ${r.score})` : ''}.` :
+                r.reason === 'proof_failed' ? 'Groth16 verification failed.' :
+                'Authentication failed.';
+              renderFinger({ mood: 'error', icon: 'i-cross', line: 'Rejected', sub: r.reason || '', detail: explain });
+              return;
             }
+            // Either signup success (no `matched` field) or login success.
+            renderFinger({ mood: 'success', icon: 'i-check', line: 'Verified', sub: r.commitmentPreview || '', detail: r.did || '' });
+            $('done-sub').textContent = kind === 'login'
+              ? `Welcome back, ${r.email}.`
+              : `Account created for ${r.email}.`;
+            $('done-meta').innerHTML = `
+              <div style="font-family:'JetBrains Mono',monospace;">
+                <div>did       ${r.did || ''}</div>
+                <div>commit    ${r.commitmentPreview || ''}</div>
+                ${r.score !== undefined ? `<div>score     ${r.score}</div>` : ''}
+              </div>`;
+            setTimeout(() => show('done'), 800);
             return;
           }
           case 'error':
-            renderState('login', {
-              mood: 'error',
-              icon: 'i-cross',
-              line: 'Login failed',
-              sub: 'Try again',
-              detail: evt.message || '',
-            });
+            renderFinger({ mood: 'error', icon: 'i-cross', line: 'Sensor flow failed', sub: '', detail: evt.message || '' });
             return;
         }
       }
 
-      // ── Handlers ─────────────────────────────────────────────────
-      async function handleSignup() {
-        const email = $('signup-email').value.trim();
-        if (!email) {
-          renderState('signup', { mood: 'error', icon: 'i-cross', line: 'Enter an email first', sub: '', detail: '' });
-          return;
-        }
-        signupBtn.disabled = true;
-        loginBtn.disabled = true;
-        resetIndicator('signup');
+      $('finger-start').addEventListener('click', async () => {
+        $('finger-start').disabled = true;
+        const url = kind === 'signup' ? '/api/demo/signup' : '/api/demo/login';
         try {
-          const r = await streamPost('/api/demo/signup', { email }, applySignupPhase);
-          if (!r.streamed && r.data?.error === 'already_registered') {
-            renderState('signup', {
-              mood: 'error',
-              icon: 'i-cross',
-              line: 'This email is already signed up',
-              sub: r.data.did ? `did ${r.data.did.slice(-8)}` : '',
-              detail: 'Use the Log in card to sign in with your fingerprint.',
-            });
-            $('login-email').value = email;
-            $('login-email').focus();
-            return;
+          const r = await streamPost(url, { email, sessionToken }, applyPhase);
+          if (!r.streamed) {
+            // Server rejected (e.g. session token expired). Send the user back
+            // to OTP step to re-verify.
+            renderFinger({ mood: 'error', icon: 'i-cross', line: 'Verification expired', sub: '', detail: r.data?.message || 'Re-verify your email.' });
+            setTimeout(() => show('otp'), 1200);
           }
-          await refreshAccounts();
         } catch (err) {
-          renderState('signup', { mood: 'error', icon: 'i-cross', line: 'Signup failed', sub: '', detail: err.message });
+          renderFinger({ mood: 'error', icon: 'i-cross', line: 'Sensor flow failed', sub: '', detail: err.message });
         } finally {
-          signupBtn.disabled = false;
-          loginBtn.disabled = false;
+          $('finger-start').disabled = false;
         }
-      }
+      });
+      $('finger-cancel').addEventListener('click', resetFlow);
+      $('done-restart').addEventListener('click', resetFlow);
 
-      async function handleLogin() {
-        const email = $('login-email').value.trim();
-        if (!email) {
-          renderState('login', { mood: 'error', icon: 'i-cross', line: 'Enter an email first', sub: '', detail: '' });
-          return;
-        }
-        signupBtn.disabled = true;
-        loginBtn.disabled = true;
-        resetIndicator('login');
-        try {
-          await streamPost('/api/demo/login', { email }, applyLoginPhase);
-        } catch (err) {
-          renderState('login', { mood: 'error', icon: 'i-cross', line: 'Login failed', sub: '', detail: err.message });
-        } finally {
-          signupBtn.disabled = false;
-          loginBtn.disabled = false;
-        }
-      }
-
-      async function handleReset() {
-        if (!confirm('Clear ALL host-stored accounts? The sensor flash isn\'t touched.')) return;
-        signupBtn.disabled = true;
-        loginBtn.disabled = true;
-        resetBtn.disabled = true;
-        try {
-          const r = await fetch('/api/demo/reset', { method: 'POST' });
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          resetIndicator('signup');
-          resetIndicator('login');
-          renderState('signup', { mood: 'success', icon: 'i-check', line: 'Accounts cleared', sub: '', detail: '' });
-          await refreshAccounts();
-        } catch (err) {
-          renderState('signup', { mood: 'error', icon: 'i-cross', line: 'Reset failed', sub: '', detail: err.message });
-        } finally {
-          signupBtn.disabled = false;
-          loginBtn.disabled = false;
-          resetBtn.disabled = false;
-        }
-      }
-
-      async function refreshAccounts() {
-        try {
-          const r = await fetch('/api/demo/accounts', { cache: 'no-store' });
-          const arr = await r.json();
-          if (!Array.isArray(arr) || arr.length === 0) {
-            tableBody.innerHTML = '<tr><td class="empty" colspan="3">No accounts yet.</td></tr>';
-            return;
-          }
-          tableBody.innerHTML = arr
-            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-            .map((a) => `
-              <tr>
-                <td>${escapeHtml(a.email)}</td>
-                <td>${escapeHtml((a.did || '').slice(-12))}</td>
-                <td>${new Date(a.createdAt).toLocaleString()}</td>
-              </tr>
-            `)
-            .join('');
-        } catch (err) {
-          tableBody.innerHTML = `<tr><td class="empty" colspan="3">Could not load accounts: ${escapeHtml(err.message)}</td></tr>`;
-        }
-      }
-
-      function escapeHtml(s) {
-        return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-      }
-
-      signupBtn.addEventListener('click', handleSignup);
-      loginBtn.addEventListener('click', handleLogin);
-      resetBtn.addEventListener('click', handleReset);
-
-      refreshAccounts();
+      // ── Boot ───────────────────────────────────────────────────
+      applyKind('login');
+      show('email');
     })();
   </script>
 </body>

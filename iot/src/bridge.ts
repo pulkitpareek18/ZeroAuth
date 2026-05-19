@@ -46,6 +46,8 @@ import { fileURLToPath } from 'node:url';
 import { CONF, R307Sensor } from './sensor.js';
 import { deriveSignals, shortHex } from './crypto.js';
 import { generateProof, verifyProof, initProver } from './proof.js';
+import * as otp from './otp.js';
+import { OtpRateLimitedError } from './otp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -54,6 +56,16 @@ const HOST = process.env.ZA_IOT_BRIDGE_HOST ?? '127.0.0.1';
 const SERIAL_PATH = process.env.ZA_IOT_PORT ?? '/dev/cu.usbserial-0001';
 const SERIAL_BAUD = Number.parseInt(process.env.ZA_IOT_BAUD ?? '57600', 10);
 const SERIAL_PASSWORD = Number.parseInt(process.env.ZA_IOT_PASSWORD ?? '0', 16);
+
+/**
+ * In dev (default), the bridge returns the freshly-issued OTP in the
+ * /api/demo/request-otp response so the operator can use the demo
+ * without SMTP. Set `ZA_IOT_HIDE_OTP=1` to flip into "production
+ * shape" — the response then carries only metadata + the operator has
+ * to read the OTP from the bridge logs (or from their inbox once an
+ * email transport is wired).
+ */
+const DEV_SHOW_OTP = process.env.ZA_IOT_HIDE_OTP !== '1';
 
 const ACCOUNTS_FILE = path.resolve(__dirname, '..', 'data', 'demo-accounts.json');
 const DEMO_HTML_PATH = path.resolve(__dirname, '..', 'demo', 'index.html');
@@ -494,24 +506,96 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === 'POST' && url.pathname === '/api/demo/signup') {
-      const body = (await readJson(req)) as { email?: unknown };
+    if (req.method === 'POST' && url.pathname === '/api/demo/request-otp') {
+      const body = (await readJson(req)) as { email?: unknown; kind?: unknown };
       const email = normalizeEmail(body.email);
       if (!email) {
         sendJson(res, 400, { error: 'invalid_email' });
         return;
       }
-      // Already-registered is decided synchronously, BEFORE we begin the
-      // stream, so the browser can render a clean "log in instead" state
-      // without showing a place-finger prompt that would just bail. The
-      // signup endpoint stays 409-flavoured even though the success path
-      // is a stream — it's the only path that 409s.
-      if (accounts.has(email)) {
-        sendJson(res, 409, {
-          error: 'already_registered',
+      const kind = body.kind === 'signup' || body.kind === 'login' ? body.kind : null;
+      if (!kind) {
+        sendJson(res, 400, { error: 'invalid_kind' });
+        return;
+      }
+      // Surface the already-registered / no-account checks at the OTP
+      // step so the user doesn't waste a code on a hopeless flow.
+      if (kind === 'signup' && accounts.has(email)) {
+        sendJson(res, 409, { error: 'already_registered', email, did: accounts.get(email)!.did });
+        return;
+      }
+      if (kind === 'login' && !accounts.has(email)) {
+        sendJson(res, 404, { error: 'no_account', email });
+        return;
+      }
+      try {
+        const issued = otp.request(email, kind);
+        // The plaintext code never makes it into the logs — only the
+        // metadata. The operator-facing line is below, gated on the
+        // dev flag.
+        console.log(`[bridge] otp issued for ${email} (${kind}); expires ${issued.expiresAt.toISOString()}`);
+        if (DEV_SHOW_OTP) console.log(`[bridge]   DEV_SHOW_OTP code=${issued.code}`);
+        sendJson(res, 200, {
           email,
-          did: accounts.get(email)!.did,
+          kind,
+          expiresAt: issued.expiresAt.toISOString(),
+          ...(DEV_SHOW_OTP ? { devCode: issued.code } : {}),
         });
+      } catch (err) {
+        if (err instanceof OtpRateLimitedError) {
+          sendJson(res, 429, { error: 'rate_limited', retryAfterMs: err.retryAfterMs });
+          return;
+        }
+        sendJson(res, 500, { error: 'otp_request_failed', message: (err as Error).message });
+      }
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/demo/verify-otp') {
+      const body = (await readJson(req)) as { email?: unknown; otp?: unknown; kind?: unknown };
+      const email = normalizeEmail(body.email);
+      if (!email) {
+        sendJson(res, 400, { error: 'invalid_email' });
+        return;
+      }
+      const code = typeof body.otp === 'string' ? body.otp.trim() : '';
+      if (!/^\d{6}$/.test(code)) {
+        sendJson(res, 400, { error: 'invalid_otp_format' });
+        return;
+      }
+      const kind = body.kind === 'signup' || body.kind === 'login' ? body.kind : null;
+      if (!kind) {
+        sendJson(res, 400, { error: 'invalid_kind' });
+        return;
+      }
+      const result = otp.verify(email, code, kind);
+      if (!result.ok) {
+        sendJson(res, 401, { error: 'otp_invalid', reason: result.reason });
+        return;
+      }
+      sendJson(res, 200, {
+        email: result.email,
+        kind: result.kind,
+        sessionToken: result.sessionToken,
+        sessionExpiresAt: result.sessionExpiresAt.toISOString(),
+      });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/demo/signup') {
+      const body = (await readJson(req)) as { email?: unknown; sessionToken?: unknown };
+      const email = normalizeEmail(body.email);
+      const sessionToken = typeof body.sessionToken === 'string' ? body.sessionToken : '';
+      if (!email) {
+        sendJson(res, 400, { error: 'invalid_email' });
+        return;
+      }
+      if (accounts.has(email)) {
+        sendJson(res, 409, { error: 'already_registered', email, did: accounts.get(email)!.did });
+        return;
+      }
+      if (!sessionToken || !otp.consumeSession(sessionToken, email, 'signup')) {
+        sendJson(res, 401, { error: 'otp_required', message: 'Verify your email with the code first.' });
         return;
       }
       await runStreamed(res, async (write) => {
@@ -530,10 +614,15 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/demo/login') {
-      const body = (await readJson(req)) as { email?: unknown };
+      const body = (await readJson(req)) as { email?: unknown; sessionToken?: unknown };
       const email = normalizeEmail(body.email);
+      const sessionToken = typeof body.sessionToken === 'string' ? body.sessionToken : '';
       if (!email) {
         sendJson(res, 400, { error: 'invalid_email' });
+        return;
+      }
+      if (!sessionToken || !otp.consumeSession(sessionToken, email, 'login')) {
+        sendJson(res, 401, { error: 'otp_required', message: 'Verify your email with the code first.' });
         return;
       }
       await runStreamed(res, async (write) => {
