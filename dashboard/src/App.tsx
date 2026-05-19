@@ -17,6 +17,24 @@ import { Audit } from './routes/Audit';
 import { Settings } from './routes/Settings';
 import { NotFound } from './routes/NotFound';
 
+/**
+ * Router basename has to track where the dashboard is mounted, which
+ * differs by host:
+ *   - console.zeroauth.dev/* → SPA lives at the root, basename = "/"
+ *   - zeroauth.dev/dashboard/* (legacy) and localhost dev (Vite serves
+ *     at /dashboard/ to match the production prefix) → basename = "/dashboard"
+ *
+ * Build-time Vite base is "/dashboard/" because the JS+CSS bundle has
+ * to load from /dashboard/assets/* on every host (Express mounts the
+ * static files there); but URL routing is a runtime concern, so we
+ * compute it from window.location instead of from import.meta.env.
+ */
+function resolveBasename(): string {
+  if (typeof window === 'undefined') return '/dashboard';
+  if (window.location.hostname.startsWith('console.')) return '/';
+  return '/dashboard';
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -50,7 +68,7 @@ function RequireAuth() {
 
 export function App() {
   return (
-    <BrowserRouter basename="/dashboard">
+    <BrowserRouter basename={resolveBasename()}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <AuthProvider>
