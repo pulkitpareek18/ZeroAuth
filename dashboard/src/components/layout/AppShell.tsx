@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
+import { useTheme, useBrandMarkUrl, type ThemeChoice } from '../../lib/theme';
 import { cn } from '../../lib/cn';
 import { Button } from '../ui';
 import type { Environment } from '../../lib/api';
@@ -70,6 +71,76 @@ function Icon({ name, className }: { name: string; className?: string }) {
   }
 }
 
+// ─── Brand mark — adapts to the active theme ──────────────────────
+
+function BrandMark() {
+  const src = useBrandMarkUrl();
+  return <img src={src} alt="" aria-hidden="true" className="size-8" />;
+}
+
+// ─── Theme toggle — three-segment Light / System / Dark ───────────
+
+function ThemeToggle() {
+  const { choice, setChoice } = useTheme();
+  const options: Array<{ value: ThemeChoice; label: string; svg: ReactNode }> = [
+    {
+      value: 'light',
+      label: 'Light',
+      svg: (
+        <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+        </svg>
+      ),
+    },
+    {
+      value: 'system',
+      label: 'Auto',
+      svg: (
+        <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="12" rx="2" />
+          <path d="M8 20h8M12 16v4" />
+        </svg>
+      ),
+    },
+    {
+      value: 'dark',
+      label: 'Dark',
+      svg: (
+        <svg viewBox="0 0 24 24" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+        </svg>
+      ),
+    },
+  ];
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Theme"
+      className="grid grid-cols-3 gap-0.5 rounded-md border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-0.5"
+    >
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          role="radio"
+          aria-checked={choice === opt.value}
+          onClick={() => setChoice(opt.value)}
+          className={cn(
+            'flex items-center justify-center gap-1.5 rounded-sm py-1.5 text-[11px] font-medium transition-colors',
+            choice === opt.value
+              ? 'bg-[var(--color-bg-raised)] text-[var(--color-text)]'
+              : 'text-[var(--color-text-dim)] hover:text-[var(--color-text-secondary)]',
+          )}
+        >
+          {opt.svg}
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ─── Layout ───────────────────────────────────────────────────────
 
 export function AppShell() {
@@ -91,11 +162,11 @@ export function AppShell() {
           mobileOpen && 'translate-x-0',
         )}
       >
-        <div className="flex h-14 items-center gap-2 border-b border-[var(--color-border-subtle)] px-4">
-          <img src="/zeroauth-mark-dark.svg" alt="" aria-hidden="true" className="size-7" />
+        <div className="flex h-14 items-center gap-2.5 border-b border-[var(--color-border-subtle)] px-4">
+          <BrandMark />
           <div>
-            <div className="text-sm font-semibold leading-none">ZeroAuth</div>
-            <div className="mt-0.5 text-[10px] text-[var(--color-text-dim)]">Developer console</div>
+            <div className="text-[15px] leading-none" style={{ fontFamily: 'var(--font-display)', fontWeight: 400 }}>ZeroAuth</div>
+            <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-dim)]">Developer console</div>
           </div>
         </div>
 
@@ -109,7 +180,7 @@ export function AppShell() {
                 cn(
                   'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-[var(--color-brand)]/15 text-[var(--color-brand)]'
+                    ? 'bg-[var(--color-bg-surface)] text-[var(--color-text)]'
                     : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text)]',
                 )
               }
@@ -120,9 +191,10 @@ export function AppShell() {
           ))}
         </nav>
 
-        <div className="absolute inset-x-0 bottom-0 border-t border-[var(--color-border-subtle)] p-3">
+        <div className="absolute inset-x-0 bottom-0 border-t border-[var(--color-border-subtle)] p-3 space-y-2.5">
+          <ThemeToggle />
           <div className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-3 text-xs">
-            <div className="font-medium text-[var(--color-text)]">{account?.companyName ?? account?.email ?? 'Unknown account'}</div>
+            <div className="font-medium text-[var(--color-text)] truncate">{account?.companyName ?? account?.email ?? 'Unknown account'}</div>
             <div className="mt-1 capitalize text-[var(--color-text-dim)]">{account?.plan ?? '—'} plan</div>
           </div>
         </div>

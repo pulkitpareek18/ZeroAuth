@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
   <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
 
@@ -33,6 +34,12 @@
     button { background: none; border: 0; padding: 0; cursor: pointer; }
     code, pre { font-family: var(--font-mono); }
 
+    /*
+     * Theme tokens. Two palettes that swap on prefers-color-scheme.
+     * The page uses "inverted" sections (code, whitepaper, dark
+     * breach-card) for visual rhythm — in dark mode those flip light,
+     * so contrast is preserved in either theme.
+     */
     :root {
       --bg: #ffffff;
       --bg-muted: #fafafa;
@@ -56,6 +63,34 @@
       --container: 1320px;
       --pad-x: clamp(20px, 4.5vw, 64px);
       --section-y: clamp(80px, 10vw, 128px);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0a0a0a;
+        --bg-muted: #121212;
+        --bg-inverse: #fafafa;
+        --bg-inverse-raised: #ededed;
+        --ink: #fafafa;
+        --ink-2: #a3a3a3;
+        --ink-3: #6e6e6e;
+        --ink-inverse: #0a0a0a;
+        --ink-inverse-2: #525252;
+        --line: #262626;
+        --line-strong: #404040;
+        --line-inverse: #d4d4d4;
+      }
+      /* The nav is sticky with a translucent backdrop; the colour we
+         mix in has to match the dark page background, not the light. */
+      .nav { background: rgba(10,10,10,0.86); }
+      /* The brand mark in the nav + footer is the black SVG by default.
+         Swap to the white variant for dark mode via a CSS filter so we
+         don't need a second <img> element. */
+      .brand img, .footer-brand-col .brand img {
+        filter: invert(1);
+      }
+      /* Same for any inline <img> inside .demo-frame (none today, but
+         defensive — the iframe carries its own theme). */
     }
 
     html { scroll-behavior: smooth; }
