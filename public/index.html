@@ -79,6 +79,18 @@
       --status: #1a7a4a;
       --warn: #b91c1c;
 
+      /* Syntax-highlighting tokens for the inverted code panes. The
+         code card uses --bg-inverse as its background, which flips
+         with the theme; these companion tokens flip too so the text
+         is always readable against that bg. Tuned for the dark
+         palette in light mode (bg #0a0a0a) and the light palette in
+         dark mode (bg #fafafa). */
+      --code-text:     #ededed;
+      --code-comment:  #6e6e6e;
+      --code-string:   #d0d0d0;
+      --code-keyword:  #b8b8b8;
+      --code-function: #fafafa;
+
       --font-display: 'Fraunces', 'Times New Roman', serif;
       --font-body: 'Inter Tight', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -106,6 +118,11 @@
         --line: #262626;
         --line-strong: #404040;
         --line-inverse: #d4d4d4;
+        --code-text:     #1a1a1a;
+        --code-comment:  #8a8a8a;
+        --code-string:   #404040;
+        --code-keyword:  #525252;
+        --code-function: #0a0a0a;
       }
       :root:not([data-theme="light"]) .nav { background: rgba(10,10,10,0.86); }
       :root:not([data-theme="light"]) .brand img,
@@ -126,6 +143,11 @@
       --line: #262626;
       --line-strong: #404040;
       --line-inverse: #d4d4d4;
+      --code-text:     #1a1a1a;
+      --code-comment:  #8a8a8a;
+      --code-string:   #404040;
+      --code-keyword:  #525252;
+      --code-function: #0a0a0a;
     }
     :root[data-theme="dark"] .nav { background: rgba(10,10,10,0.86); }
     :root[data-theme="dark"] .brand img,
@@ -525,13 +547,13 @@
       font-family: var(--font-mono);
       font-size: 13px;
       line-height: 1.7;
-      color: #ededed;
+      color: var(--code-text);
       white-space: pre;
     }
-    .code-pane .c-cmt { color: #6e6e6e; }
-    .code-pane .c-str { color: #d0d0d0; }
-    .code-pane .c-kw { color: #b8b8b8; }
-    .code-pane .c-fn { color: #fafafa; }
+    .code-pane .c-cmt { color: var(--code-comment); }
+    .code-pane .c-str { color: var(--code-string); }
+    .code-pane .c-kw  { color: var(--code-keyword); }
+    .code-pane .c-fn  { color: var(--code-function); }
 
     /* ───── How it works (steps + mini-code) ───── */
 
@@ -566,7 +588,7 @@
     .step p { font-size: 14px; line-height: 1.6; color: var(--ink-2); }
     .step .mini-code {
       background: var(--bg-inverse);
-      color: #ededed;
+      color: var(--code-text);
       padding: 14px 16px;
       font-family: var(--font-mono);
       font-size: 12px;
@@ -574,10 +596,10 @@
       overflow-x: auto;
       white-space: pre;
     }
-    .step .mini-code .c-cmt { color: #6e6e6e; }
-    .step .mini-code .c-str { color: #d0d0d0; }
-    .step .mini-code .c-kw { color: #b8b8b8; }
-    .step .mini-code .c-fn { color: #fafafa; }
+    .step .mini-code .c-cmt { color: var(--code-comment); }
+    .step .mini-code .c-str { color: var(--code-string); }
+    .step .mini-code .c-kw  { color: var(--code-keyword); }
+    .step .mini-code .c-fn  { color: var(--code-function); }
 
     /* ───── Features grid ───── */
 
