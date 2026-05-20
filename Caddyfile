@@ -47,8 +47,13 @@ zeroauth.dev, www.zeroauth.dev {
 	@docs path_regexp doc ^/docs(/.*)?$
 	redir @docs https://docs.zeroauth.dev{re.doc.1} permanent
 
-	redir /v1/*  https://api.zeroauth.dev{uri}  permanent
-	redir /api/* https://api.zeroauth.dev{uri}  permanent
+	# 308 (not 301/permanent) so POST stays POST across the redirect.
+	# The landing page submits the whitepaper + pilot lead forms as
+	# POST to relative /api/leads/*; a 301 here was making the browser
+	# downgrade the second hop to GET, which 404'd on the API host
+	# and surfaced as a "Sorry, something went wrong" toast.
+	redir /v1/*  https://api.zeroauth.dev{uri}  308
+	redir /api/* https://api.zeroauth.dev{uri}  308
 
 	reverse_proxy zeroauth-prod:3000 {
 		header_up X-Real-IP {remote_host}

@@ -79,17 +79,19 @@
       --status: #1a7a4a;
       --warn: #b91c1c;
 
-      /* Syntax-highlighting tokens for the inverted code panes. The
-         code card uses --bg-inverse as its background, which flips
-         with the theme; these companion tokens flip too so the text
-         is always readable against that bg. Tuned for the dark
-         palette in light mode (bg #0a0a0a) and the light palette in
-         dark mode (bg #fafafa). */
-      --code-text:     #ededed;
-      --code-comment:  #6e6e6e;
-      --code-string:   #d0d0d0;
-      --code-keyword:  #b8b8b8;
-      --code-function: #fafafa;
+      /* Code window — intentionally dark in BOTH themes (VS Code-style
+         dark editor). These tokens do NOT flip with the page palette,
+         so the same selectors below don't need a dark-mode override. */
+      --code-bg:        #0a0a0a;
+      --code-bg-raised: #141414;
+      --code-line:      #1f1f1f;
+      --code-tab:       #a3a3a3;
+      --code-tab-strong:#fafafa;
+      --code-text:      #d4d4d4;
+      --code-comment:   #6a9955;
+      --code-string:    #ce9178;
+      --code-keyword:   #569cd6;
+      --code-function:  #dcdcaa;
 
       --font-display: 'Fraunces', 'Times New Roman', serif;
       --font-body: 'Inter Tight', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -118,11 +120,10 @@
         --line: #262626;
         --line-strong: #404040;
         --line-inverse: #d4d4d4;
-        --code-text:     #1a1a1a;
-        --code-comment:  #8a8a8a;
-        --code-string:   #404040;
-        --code-keyword:  #525252;
-        --code-function: #0a0a0a;
+        /* --code-* tokens are intentionally NOT overridden here — the
+           code window stays dark in dark mode (VS Code-style editor).
+           If you want it to invert with the rest of the theme, restore
+           the prior dark palette here. */
       }
       :root:not([data-theme="light"]) .nav { background: rgba(10,10,10,0.86); }
       :root:not([data-theme="light"]) .brand img,
@@ -143,11 +144,7 @@
       --line: #262626;
       --line-strong: #404040;
       --line-inverse: #d4d4d4;
-      --code-text:     #1a1a1a;
-      --code-comment:  #8a8a8a;
-      --code-string:   #404040;
-      --code-keyword:  #525252;
-      --code-function: #0a0a0a;
+      /* --code-* tokens stay dark — see the matching note above. */
     }
     :root[data-theme="dark"] .nav { background: rgba(10,10,10,0.86); }
     :root[data-theme="dark"] .brand img,
@@ -499,18 +496,21 @@
     .qs-step .ic { display: inline-block; font-family: var(--font-mono); font-size: 12px; padding: 1px 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; color: var(--ink); }
     .qs-actions { display: flex; gap: 12px; margin-top: 24px; margin-left: 26px; flex-wrap: wrap; }
 
-    /* Code card */
+    /* Code card — chrome stays dark in both themes (VS Code editor look).
+       Selectors reference the --code-* tokens, not the flipping
+       --bg-inverse / --ink-inverse, so the panel doesn't invert with
+       the page palette. */
     .code-card {
-      background: var(--bg-inverse);
-      border: 1px solid var(--line);
+      background: var(--code-bg);
+      border: 1px solid var(--code-line);
       overflow: hidden;
     }
     .code-tabs {
       display: flex;
       align-items: center;
       gap: 0;
-      background: var(--bg-inverse-raised);
-      border-bottom: 1px solid var(--line-inverse);
+      background: var(--code-bg-raised);
+      border-bottom: 1px solid var(--code-line);
       padding-inline: 8px;
     }
     .code-tab {
@@ -518,12 +518,12 @@
       font-family: var(--font-mono);
       font-size: 12px;
       letter-spacing: 0.04em;
-      color: var(--ink-inverse-2);
+      color: var(--code-tab);
       border-bottom: 1px solid transparent;
       transition: color 150ms ease, border-color 150ms ease;
     }
-    .code-tab:hover { color: var(--ink-inverse); }
-    .code-tab.active { color: var(--ink-inverse); border-bottom-color: var(--ink-inverse); }
+    .code-tab:hover { color: var(--code-tab-strong); }
+    .code-tab.active { color: var(--code-tab-strong); border-bottom-color: var(--code-tab-strong); }
     .code-copy {
       margin-left: auto;
       padding: 6px 12px;
@@ -532,11 +532,11 @@
       font-weight: 500;
       letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: var(--ink-inverse-2);
-      border: 1px solid var(--line-inverse);
+      color: var(--code-tab);
+      border: 1px solid var(--code-line);
       transition: color 150ms ease, border-color 150ms ease;
     }
-    .code-copy:hover { color: var(--ink-inverse); border-color: var(--ink-inverse-2); }
+    .code-copy:hover { color: var(--code-tab-strong); border-color: var(--code-tab); }
     .code-pane {
       display: none;
       padding: clamp(16px, 2vw, 24px);
@@ -587,7 +587,7 @@
     }
     .step p { font-size: 14px; line-height: 1.6; color: var(--ink-2); }
     .step .mini-code {
-      background: var(--bg-inverse);
+      background: var(--code-bg);
       color: var(--code-text);
       padding: 14px 16px;
       font-family: var(--font-mono);
