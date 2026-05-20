@@ -18,10 +18,50 @@ for now it lives in-tree so we can iterate.
 ## What's NOT in scope yet
 
 - The Pramaan fuzzy extractor + Poseidon commitment (lives in `/circuits`)
-- POST to `/v1/users/register` / `/v1/verifications` (next pass, once a
-  fuzzy-extractor binding is wired)
 - Hardware attestation, secure element key sealing, network resilience
 - The GT-521 protocol or any of the non-ZhiAn families
+
+## Central-API sync (W2)
+
+The bridge can mirror every signup + login to the hosted ZeroAuth API at
+`https://api.zeroauth.dev` so the dashboard's Overview / Verifications /
+Attendance pages light up in real time. The mapping is:
+
+| Bridge event       | Central call                                              |
+| ------------------ | --------------------------------------------------------- |
+| signup ok          | `POST /v1/users`     (registers the user under tenant)    |
+| login ok           | `POST /v1/verifications`  (method=fingerprint, result=pass) |
+| login ok           | `POST /v1/attendance`     (type=check_in, result=accepted) |
+| bridge boot        | `POST /v1/devices` once, then cached                      |
+
+Enable by setting the env before `npm --prefix iot run demo`:
+
+```bash
+export ZA_CENTRAL_API_URL=https://api.zeroauth.dev
+export ZA_CENTRAL_API_KEY=za_test_…   # tenant key with the 4 scopes below
+# optional overrides:
+export ZA_CENTRAL_DEVICE_ID=lobby-1
+export ZA_CENTRAL_DEVICE_NAME="Lobby terminal 1"
+```
+
+API-key scopes required: `devices:write`, `users:write`,
+`verifications:write`, `attendance:write`.
+
+When the env is unset, the bridge runs as a fully local demo (the prior
+behaviour). Network errors against the central API are logged and
+swallowed — the local "login ok" still lands; only the dashboard mirror
+is skipped. The bridge emits NDJSON `syncing_central` / `central_synced`
+/ `central_skipped` phase events so the demo UI can show the operator
+whether the central side caught up.
+
+## Sim mode (no R307 required)
+
+For machines that don't have the sensor plugged in (CI, dev laptops, demo
+rehearsals), set `ZA_SIM_MODE=1`. The bridge skips the serial-port open
+and the Groth16 prover preload, and replaces `enroll`/`authenticate`
+with deterministic stubs that exercise the same Poseidon path and the
+same central-API plumbing. Combined with `ZA_CENTRAL_API_URL` this is
+enough to drive the dashboard end-to-end without hardware.
 
 ## Hardware setup
 

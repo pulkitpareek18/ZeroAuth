@@ -16,7 +16,8 @@
     "wipe": "tsx src/cli.ts wipe",
     "demo": "tsx src/bridge.ts",
     "typecheck": "tsc --noEmit",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "node --import tsx --test src/central-api.test.ts"
   },
   "dependencies": {
     "poseidon-lite": "^0.3.0",

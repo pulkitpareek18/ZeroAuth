@@ -43,11 +43,13 @@ import http from 'node:http';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import { CONF, R307Sensor } from './sensor.js';
 import { deriveSignals, shortHex } from './crypto.js';
 import { generateProof, verifyProof, initProver } from './proof.js';
 import * as otp from './otp.js';
 import { OtpRateLimitedError } from './otp.js';
+import { CentralApiClient, readConfigFromEnv as readCentralConfig } from './central-api.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -66,6 +68,16 @@ const SERIAL_PASSWORD = Number.parseInt(process.env.ZA_IOT_PASSWORD ?? '0', 16);
  * email transport is wired).
  */
 const DEV_SHOW_OTP = process.env.ZA_IOT_HIDE_OTP !== '1';
+
+/**
+ * Sim mode lets the bridge run end-to-end without an R307 attached.
+ * Useful for the central-API demo on machines that don't have the
+ * hardware, and for unit-style smoke tests in CI. Enroll/authenticate
+ * become deterministic stubs (no sensor, no Groth16 proof) and the
+ * /v1/* calls fire exactly as they would in the real flow, so the
+ * downstream dashboard sees the same shape of events.
+ */
+const SIM_MODE = process.env.ZA_SIM_MODE === '1';
 
 const ACCOUNTS_FILE = path.resolve(__dirname, '..', 'data', 'demo-accounts.json');
 const DEMO_HTML_PATH = path.resolve(__dirname, '..', 'demo', 'index.html');
@@ -108,12 +120,24 @@ interface Account {
   identityBinding: string;
   did: string;
   createdAt: string;
+  /** Optional — set when the central API is configured. Used to attribute
+      /v1/verifications + /v1/attendance events to the right tenant user. */
+  centralUserId?: string;
 }
 
 // ─── State ────────────────────────────────────────────────────────────────
 
 const accounts = new Map<string, Account>();
 let sensor: R307Sensor | null = null;
+
+/**
+ * Central-API client + cached device record. Both null when ZA_CENTRAL_API_URL
+ * / ZA_CENTRAL_API_KEY aren't set — the bridge then runs as a fully local
+ * demo. When configured, the bridge resolves the device once at startup and
+ * reuses its id for every verification/attendance event.
+ */
+let centralApi: CentralApiClient | null = null;
+let centralDeviceId: string | null = null;
 
 /**
  * Async mutex around sensor access. The R307 only handles one command at a
@@ -206,6 +230,14 @@ export type Phase =
    * to do differently this time.
    */
   | { phase: 'retry'; attempt: number; reason: string }
+  /**
+   * Central-API sync events. The bridge emits one of these around each
+   * /v1/* call so the UI can show "Syncing with ZeroAuth…" and tell the
+   * operator whether the dashboard was updated.
+   */
+  | { phase: 'syncing_central'; op: 'register_user' | 'record_verification' | 'record_attendance' }
+  | { phase: 'central_synced'; op: 'register_user' | 'record_verification' | 'record_attendance'; id: string }
+  | { phase: 'central_skipped'; reason: 'not_configured' | 'remote_error' }
   | { phase: 'done'; result: unknown }
   | { phase: 'error'; message: string };
 
@@ -433,6 +465,175 @@ async function reset(): Promise<void> {
   console.log('[bridge] reset: host accounts cleared (sensor flash untouched)');
 }
 
+// ─── Sim mode ─────────────────────────────────────────────────────────────
+//
+// When ZA_SIM_MODE=1, enroll() + authenticate() are stubbed so the bridge
+// runs without an R307 attached. The signals are still derived through the
+// real Poseidon path — only the sensor and Groth16 proof are skipped. This
+// is the path the central-API demo uses on machines without hardware.
+
+async function simEnroll(email: string, onProgress: ProgressFn): Promise<Account> {
+  if (accounts.has(email)) {
+    throw new EmailAlreadyRegisteredError(email);
+  }
+  onProgress({ phase: 'awaiting_finger', step: 1 });
+  // Deterministic 768-byte synthetic template so the same email maps to the
+  // same commitment across restarts. The real path's template is opaque to
+  // everything except the sensor's matcher, so a SHA-256 stretch is fine
+  // for sim purposes.
+  const seed = createHash('sha256').update(`zeroauth-sim:${email}`).digest();
+  const templateBytes = Buffer.alloc(768);
+  for (let i = 0; i < templateBytes.length; i += seed.length) {
+    seed.copy(templateBytes, i, 0, Math.min(seed.length, templateBytes.length - i));
+  }
+  onProgress({ phase: 'captured', step: 1 });
+  onProgress({ phase: 'awaiting_removal', step: 1 });
+  onProgress({ phase: 'removed', step: 1 });
+  onProgress({ phase: 'awaiting_finger', step: 2 });
+  onProgress({ phase: 'captured', step: 2 });
+  onProgress({ phase: 'uploading_template' });
+
+  // Deterministic salt from the email so signals are reproducible.
+  const saltDigest = createHash('sha256').update(`sim-salt:${email}`).digest();
+  const salt = BigInt('0x' + saltDigest.toString('hex'));
+  const signals = deriveSignals({ templateBytes, email, salt });
+  onProgress({ phase: 'deriving', commitmentPreview: shortHex(signals.commitment) });
+  // Skip the real Groth16 proof — flagged via the proving + verifying
+  // phases so the UI still shows progress, but we don't pay the multi-
+  // second cost.
+  onProgress({ phase: 'proving' });
+  onProgress({ phase: 'verifying' });
+
+  const account: Account = {
+    email,
+    template: templateBytes.toString('base64'),
+    salt: signals.salt.toString(),
+    commitment: signals.commitment.toString(),
+    didHash: signals.didHash.toString(),
+    identityBinding: signals.identityBinding.toString(),
+    did: signals.did,
+    createdAt: new Date().toISOString(),
+  };
+  accounts.set(email, account);
+  await saveAccounts();
+  console.log(`[bridge] (sim) signup OK for ${email}, commitment ${shortHex(signals.commitment)}`);
+  return account;
+}
+
+async function simAuthenticate(email: string, onProgress: ProgressFn): Promise<AuthResult> {
+  const account = accounts.get(email);
+  onProgress({ phase: 'awaiting_finger', step: 0 });
+  onProgress({ phase: 'captured', step: 0 });
+  if (!account) {
+    return { matched: false, email, reason: 'no_account' };
+  }
+  onProgress({ phase: 'loading_template' });
+  // Score is synthetic but inside the normal range so the UI doesn't
+  // look broken (real R307 hovers 80-180 for the same finger).
+  const score = 120;
+  onProgress({ phase: 'matching', score });
+  onProgress({ phase: 'deriving', commitmentPreview: shortHex(BigInt(account.commitment)) });
+  onProgress({ phase: 'proving' });
+  onProgress({ phase: 'verifying' });
+  console.log(`[bridge] (sim) login OK for ${email}, score ${score}`);
+  return {
+    matched: true,
+    email,
+    score,
+    commitmentPreview: shortHex(BigInt(account.commitment)),
+    did: account.did,
+  };
+}
+
+async function performEnroll(email: string, onProgress: ProgressFn): Promise<Account> {
+  return SIM_MODE ? simEnroll(email, onProgress) : enroll(email, onProgress);
+}
+
+async function performAuthenticate(email: string, onProgress: ProgressFn): Promise<AuthResult> {
+  return SIM_MODE ? simAuthenticate(email, onProgress) : authenticate(email, onProgress);
+}
+
+// ─── Central API sync ─────────────────────────────────────────────────────
+//
+// Both helpers are best-effort: if the API errors out, we log + emit a
+// `central_skipped` event but still return the local result to the
+// browser. The premise is that the central sync is observability for the
+// dashboard, not the demo's ground truth.
+
+async function syncSignupToCentral(email: string, write: (event: Phase) => void): Promise<void> {
+  if (!centralApi || !centralDeviceId) {
+    write({ phase: 'central_skipped', reason: 'not_configured' });
+    return;
+  }
+  write({ phase: 'syncing_central', op: 'register_user' });
+  const user = await centralApi.registerUser(email);
+  if (!user) {
+    write({ phase: 'central_skipped', reason: 'remote_error' });
+    return;
+  }
+  const account = accounts.get(email);
+  if (account) {
+    account.centralUserId = user.id;
+    await saveAccounts();
+  }
+  write({ phase: 'central_synced', op: 'register_user', id: user.id });
+}
+
+async function syncLoginToCentral(
+  email: string,
+  matchScore: number | undefined,
+  write: (event: Phase) => void,
+): Promise<void> {
+  if (!centralApi || !centralDeviceId) {
+    write({ phase: 'central_skipped', reason: 'not_configured' });
+    return;
+  }
+  const account = accounts.get(email);
+  if (!account?.centralUserId) {
+    // No central user attached — the signup happened before the central
+    // API was wired, or registerUser failed. Try to back-fill once.
+    const user = await centralApi.registerUser(email);
+    if (user && account) {
+      account.centralUserId = user.id;
+      await saveAccounts();
+    }
+  }
+  const userId = accounts.get(email)?.centralUserId;
+  if (!userId) {
+    write({ phase: 'central_skipped', reason: 'remote_error' });
+    return;
+  }
+
+  write({ phase: 'syncing_central', op: 'record_verification' });
+  const verification = await centralApi.recordVerification({
+    userId,
+    deviceId: centralDeviceId,
+    method: 'fingerprint',
+    result: 'pass',
+    confidenceScore: matchScore,
+    referenceId: `iot-bridge:${Date.now()}`,
+  });
+  if (!verification) {
+    write({ phase: 'central_skipped', reason: 'remote_error' });
+    return;
+  }
+  write({ phase: 'central_synced', op: 'record_verification', id: verification.id });
+
+  write({ phase: 'syncing_central', op: 'record_attendance' });
+  const attendance = await centralApi.recordCheckIn({
+    userId,
+    deviceId: centralDeviceId,
+    verificationId: verification.id,
+    type: 'check_in',
+    result: 'accepted',
+  });
+  if (!attendance) {
+    write({ phase: 'central_skipped', reason: 'remote_error' });
+    return;
+  }
+  write({ phase: 'central_synced', op: 'record_attendance', id: attendance.id });
+}
+
 // ─── HTTP ─────────────────────────────────────────────────────────────────
 
 async function readJson(req: http.IncomingMessage): Promise<unknown> {
@@ -599,7 +800,8 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       await runStreamed(res, async (write) => {
-        const account = await enroll(email, write);
+        const account = await performEnroll(email, write);
+        await syncSignupToCentral(email, write);
         write({
           phase: 'done',
           result: {
@@ -607,6 +809,7 @@ const server = http.createServer(async (req, res) => {
             createdAt: account.createdAt,
             commitmentPreview: shortHex(BigInt(account.commitment)),
             did: account.did,
+            centralUserId: accounts.get(email)?.centralUserId ?? null,
           },
         });
       });
@@ -626,7 +829,10 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       await runStreamed(res, async (write) => {
-        const result = await authenticate(email, write);
+        const result = await performAuthenticate(email, write);
+        if (result.matched) {
+          await syncLoginToCentral(email, result.score, write);
+        }
         write({ phase: 'done', result });
       });
       return;
@@ -656,22 +862,44 @@ const server = http.createServer(async (req, res) => {
 async function main(): Promise<void> {
   await loadAccounts();
 
-  console.log('[bridge] preloading Groth16 proving + verification keys…');
-  await initProver();
+  if (SIM_MODE) {
+    console.log('[bridge] SIM_MODE=1 — skipping R307 + Groth16 prover preload');
+  } else {
+    console.log('[bridge] preloading Groth16 proving + verification keys…');
+    await initProver();
 
-  sensor = new R307Sensor({
-    path: SERIAL_PATH,
-    baudRate: SERIAL_BAUD,
-    password: SERIAL_PASSWORD,
-    fingerTimeoutMs: 30_000, // demo gives the user a generous window
-  });
+    sensor = new R307Sensor({
+      path: SERIAL_PATH,
+      baudRate: SERIAL_BAUD,
+      password: SERIAL_PASSWORD,
+      fingerTimeoutMs: 30_000, // demo gives the user a generous window
+    });
 
-  console.log(`[bridge] opening ${SERIAL_PATH} @ ${SERIAL_BAUD} baud…`);
-  await sensor.open();
-  const ok = await sensor.verifyPassword();
-  if (!ok) {
-    console.error('[bridge] sensor password verification failed.');
-    process.exit(1);
+    console.log(`[bridge] opening ${SERIAL_PATH} @ ${SERIAL_BAUD} baud…`);
+    await sensor.open();
+    const ok = await sensor.verifyPassword();
+    if (!ok) {
+      console.error('[bridge] sensor password verification failed.');
+      process.exit(1);
+    }
+  }
+
+  // Wire the central-API client when configured. ensureDevice() is a
+  // single network call that resolves the deviceId we'll attach to every
+  // verification + attendance event. Failure here is non-fatal — the
+  // bridge still serves the local demo.
+  const centralCfg = readCentralConfig();
+  if (centralCfg) {
+    centralApi = new CentralApiClient(centralCfg);
+    console.log(`[bridge] central-api: enabled, base=${centralCfg.baseUrl}, device=${centralCfg.deviceExternalId}`);
+    const device = await centralApi.ensureDevice();
+    if (device) {
+      centralDeviceId = device.id;
+    } else {
+      console.warn('[bridge] central-api: device resolution failed; signup/login will skip /v1/* until next restart');
+    }
+  } else {
+    console.log('[bridge] central-api: not configured (set ZA_CENTRAL_API_URL + ZA_CENTRAL_API_KEY to enable)');
   }
 
   server.listen(PORT, HOST, () => {
